@@ -189,13 +189,13 @@ function CreatePlanContent() {
 
   if (!agent) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
         <div className="max-w-6xl mx-auto text-center py-12">
-          <h2 className="text-2xl font-bold text-gray-900">Agent not found</h2>
-          <p className="text-gray-600 mt-2">The agent you're looking for doesn't exist.</p>
+          <h2 className="text-3xl font-bold text-gray-900">Agent not found</h2>
+          <p className="text-gray-600 mt-2 text-lg">The agent you're looking for doesn't exist.</p>
           <Link
             href="/agents"
-            className="inline-block mt-4 text-indigo-600 hover:text-indigo-700"
+            className="inline-block mt-6 text-emerald-600 hover:text-emerald-700 font-semibold"
           >
             ← Back to agents
           </Link>
@@ -206,9 +206,10 @@ function CreatePlanContent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
         <div className="max-w-6xl mx-auto text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
+          <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-emerald-200 border-t-emerald-600"></div>
+          <p className="text-gray-600 font-medium mt-4">Loading plan...</p>
         </div>
       </div>
     );
@@ -426,50 +427,52 @@ function CreatePlanContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <Link
                 href={`/agents/${agentId}/plans`}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 transition"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
               </Link>
-              <h1 className="text-xl font-semibold text-gray-900">
-                {plan.id ? 'Edit plan' : 'Create new plan'} · {agent.name}
-              </h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                  {plan.id ? 'Edit plan' : 'Create new plan'}
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">{agent.name}</p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-500">
-                {agent.agentType} · {agent.externalId}
+              <span className="text-sm font-medium text-gray-600">
+                {agent.agentType === 'voice' && (
+                  <span className="inline-flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold uppercase tracking-wide">
+                    Voice · per-minute billing
+                  </span>
+                )}
               </span>
-              {agent.agentType === 'voice' && (
-                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                  Voice · per-minute billing
-                </span>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Presets - only show for new plans */}
         {!plan.id && (
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h2 className="text-sm font-medium text-gray-700 mb-3">Start from a template</h2>
-            <div className="flex flex-wrap gap-2">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
+            <h2 className="text-base font-semibold text-gray-900 mb-4">Quick Start Templates</h2>
+            <div className="flex flex-wrap gap-3">
               {Object.keys(PRESETS).map((preset) => (
                 <button
                   key={preset}
                   type="button"
                   onClick={() => applyPreset(preset as keyof typeof PRESETS)}
-                  className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 transition"
+                  className="px-4 py-2.5 text-sm font-medium bg-gradient-to-r from-emerald-50 to-teal-50 hover:from-emerald-100 hover:to-teal-100 text-emerald-700 rounded-lg border border-emerald-200 transition duration-200"
                 >
                   {preset}
                 </button>
@@ -479,16 +482,16 @@ function CreatePlanContent() {
         )}
 
         {/* Main form - grid layout */}
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left column - Basic Info & Fees & Seats */}
-          <div className="col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* 1️⃣ Plan Identity */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Plan Identity</h2>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Plan Identity</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Plan Name
                     </label>
                     <input
@@ -502,47 +505,47 @@ function CreatePlanContent() {
                           .replace(/^-|-$/g, '');
                         updatePlan('slug', slug);
                       }}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                       placeholder="e.g., Growth Plan"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Slug
                     </label>
                     <input
                       type="text"
                       value={plan.slug}
                       onChange={(e) => updatePlan('slug', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition bg-gray-50"
                       placeholder="growth-plan"
                       required
                     />
-                    <p className="text-xs text-gray-500 mt-1">URL-friendly identifier</p>
+                    <p className="text-xs text-gray-500 mt-2">URL-friendly identifier</p>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
                     Description
                   </label>
                   <input
                     type="text"
                     value={plan.description}
                     onChange={(e) => updatePlan('description', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                     placeholder="Brief description of this plan"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Billing Frequency
                     </label>
                     <select
                       value={plan.billingFrequency}
                       onChange={(e) => updatePlan('billingFrequency', e.target.value as BillingFrequency)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-white"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                     >
                       <option>Monthly</option>
                       <option>Quarterly</option>
@@ -555,12 +558,19 @@ function CreatePlanContent() {
                       Base Price
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2 text-gray-500">₹</span>
+                      <span className="absolute left-3 top-2.5 text-gray-500 font-medium">₹</span>
                       <input
                         type="number"
-                        value={plan.basePrice / 100}
-                        onChange={(e) => updatePlan('basePrice', Number(e.target.value) * 100)}
-                        className="w-full border border-gray-300 rounded-lg pl-7 pr-4 py-2 focus:ring-2 focus:ring-indigo-500"
+                        value={plan.basePrice / 100 || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updatePlan('basePrice', 0);
+                          } else {
+                            updatePlan('basePrice', Number(val) * 100);
+                          }
+                        }}
+                        className="w-full border border-gray-300 rounded-lg pl-8 pr-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         placeholder="0.00"
                         step="0.01"
                         min="0"
@@ -572,8 +582,8 @@ function CreatePlanContent() {
             </div>
 
             {/* 2️⃣ Fees & Seats */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Fees & Seats</h2>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Fees & Seats</h2>
               <div className="space-y-4">
                 {/* Setup Fee */}
                 <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
@@ -702,26 +712,26 @@ function CreatePlanContent() {
           </div>
 
           {/* Right column - Preview Panels */}
-          <div className="col-span-1 space-y-6">
+          <div className="space-y-8">
             {/* Invoice Preview */}
-            <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl shadow-sm p-6 border border-indigo-100 sticky top-24">
-              <h3 className="text-sm font-medium text-indigo-900 mb-3">📊 Invoice Preview</h3>
-              <p className="text-xs text-indigo-700 mb-4">
+            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200 sticky top-24">
+              <h3 className="text-base font-bold text-emerald-900 mb-4">Invoice Preview</h3>
+              <p className="text-xs text-emerald-700 mb-5">
                 {agent.agentType === 'voice' 
                   ? 'Based on sample: 5 seats, 50 voice minutes'
                   : 'Based on sample: 5 seats, 150 messages, 20 articles'
                 }
               </p>
-              <div className="text-3xl font-bold text-indigo-900">
+              <div className="text-4xl font-bold text-emerald-900">
                 ₹{calculateInvoice()}
-                <span className="text-base font-normal text-indigo-600 ml-2">
+                <span className="text-base font-normal text-emerald-600 ml-2">
                   /{plan.billingFrequency.toLowerCase()}
                 </span>
               </div>
               
-              <div className="mt-4 pt-4 border-t border-indigo-200">
-                <h4 className="text-xs font-medium text-indigo-900 mb-2">Plan summary</h4>
-                <div className="space-y-1 text-xs text-indigo-800">
+              <div className="mt-6 pt-6 border-t border-emerald-200">
+                <h4 className="text-xs font-bold text-emerald-900 mb-3 uppercase tracking-wide">Plan summary</h4>
+                <div className="space-y-2 text-xs text-emerald-800">
                   {plan.basePrice > 0 && (
                     <div className="flex justify-between">
                       <span>Base price:</span>
@@ -740,9 +750,9 @@ function CreatePlanContent() {
               </div>
             </div>
 
-            {/* 🆕 Subscription Preview */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">📅 Subscription Preview</h3>
+            {/* Subscription Preview */}
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
+              <h3 className="text-base font-bold text-gray-900 mb-4">Subscription Preview</h3>
               <div className="text-sm text-gray-600 space-y-2">
                 <div className="flex justify-between">
                   <span>Customer subscribes to:</span>
@@ -763,17 +773,17 @@ function CreatePlanContent() {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3.5 px-4 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
               >
                 {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
               </button>
               <Link
                 href={`/agents/${agentId}/plans`}
-                className="block text-center mt-2 text-sm text-gray-600 hover:text-gray-900 py-2"
+                className="block text-center mt-3 text-sm text-gray-600 hover:text-gray-900 py-2.5 font-medium"
               >
                 Cancel
               </Link>
@@ -781,9 +791,9 @@ function CreatePlanContent() {
           </div>
         </div>
 
-        {/* 3️⃣ Usage-Based Pricing Section - Full Width */}
-        <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Usage-Based Pricing</h2>
+        {/* Usage-Based Pricing Section - Full Width */}
+        <div className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Usage-Based Pricing</h2>
           <div className="space-y-6">
             {agent.indicators.map((indicator) => {
               const type = indicator.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
