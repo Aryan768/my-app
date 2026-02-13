@@ -3,8 +3,10 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getPlan, savePlan } from '../plan-storage';
-import { Agent, Plan, BillingType, BillingFrequency, Tier } from '../types';
+import { Agent , Plan, BillingType, BillingFrequency, Tier} from '../types';
+import { getPlans, getPlan, savePlan } from '../plan-storage';
+// import { getPlan, savePlan, getPlans } from '../../plan-storage';
+// import { Agent, Plan, BillingType, BillingFrequency, Tier } from '../../types';
 
 // ---------- STATIC AGENT DATA ----------
 const agents: Record<string, Agent> = {
@@ -97,6 +99,7 @@ const PRESETS = {
         price: 5,
         billingFrequency: "Quarterly",
         includedUsage: 0,
+        rounding: 'ceil',
         tiers: [
           { id: "t1", from: 1, to: 5, units: 0, price: 10 },
           { id: "t2", from: 6, to: 10, units: 0, price: 8 },
@@ -145,6 +148,18 @@ const formatPrice = (price: number, currency: string = 'INR') => {
   }).format(rupees);
 };
 
+// ---------- VALIDATION ----------
+const validatePlan = (plan: Plan, agentId: string): string | null => {
+  const existing = getPlans().filter(p => p.agentId === agentId && p.id !== plan.id);
+  if (existing.some(p => p.name.toLowerCase() === plan.name.toLowerCase())) {
+    return 'A plan with this name already exists for this agent.';
+  }
+  if (existing.some(p => p.slug.toLowerCase() === plan.slug.toLowerCase())) {
+    return 'A plan with this slug already exists for this agent.';
+  }
+  return null;
+};
+
 // ---------- MAIN CREATE/EDIT PAGE ----------
 function CreatePlanContent() {
   const params = useParams();
@@ -166,7 +181,6 @@ function CreatePlanContent() {
       if (existingPlan && existingPlan.agentId === agentId) {
         setPlan(existingPlan);
       } else {
-        // Plan not found or doesn't belong to this agent
         router.push(`/agents/${agentId}/plans`);
       }
       setIsLoading(false);
@@ -239,6 +253,7 @@ function CreatePlanContent() {
         billingFrequency: 'Monthly',
         includedUsage: 0,
         tiers: [],
+        rounding: 'ceil',
       };
       return {
         ...prev,
@@ -316,7 +331,7 @@ function CreatePlanContent() {
     setPlan(newPlan);
   };
 
-  // ---------- Invoice preview ----------
+  // ---------- Invoice preview with rounding ----------
   const calculateInvoice = (): string => {
     let total = plan.basePrice / 100;
 
@@ -342,8 +357,19 @@ function CreatePlanContent() {
       if (!cfg?.enabled) return;
 
       let units = sampleUsage[ind.id] || 0;
-      let billingUnits = units * ind.humanValueEquivalent;
-      if (ind.perMinuteEnabled) billingUnits = units;
+      
+      // 🆕 Apply rounding for per-minute indicators
+      let billingUnits = units;
+      if (ind.perMinuteEnabled) {
+        if (cfg.rounding === 'ceil') {
+          billingUnits = Math.ceil(units);
+        } else if (cfg.rounding === 'floor') {
+          billingUnits = Math.floor(units);
+        } // else 'exact' – keep as seconds (units already in seconds? For preview we treat as minutes)
+        // For preview we assume units are in minutes; for exact we keep decimal.
+      } else {
+        billingUnits = units * ind.humanValueEquivalent;
+      }
 
       const included = cfg.includedUsage || 0;
       const overage = Math.max(0, billingUnits - included);
@@ -381,6 +407,14 @@ function CreatePlanContent() {
       createdAt: plan.createdAt || new Date().toISOString(),
     };
 
+    // 🆕 Validate uniqueness
+    const error = validatePlan(planToSave, agentId);
+    if (error) {
+      alert(error);
+      setIsSubmitting(false);
+      return;
+    }
+
     // Save to localStorage
     savePlan(planToSave);
     
@@ -414,6 +448,11 @@ function CreatePlanContent() {
               <span className="text-sm text-gray-500">
                 {agent.agentType} · {agent.externalId}
               </span>
+              {agent.agentType === 'voice' && (
+                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                  Voice · per-minute billing
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -443,9 +482,9 @@ function CreatePlanContent() {
         <div className="grid grid-cols-3 gap-6">
           {/* Left column - Basic Info & Fees & Seats */}
           <div className="col-span-2 space-y-6">
-            {/* Basic Info */}
+            {/* 1️⃣ Plan Identity */}
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Plan Identity</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -457,14 +496,13 @@ function CreatePlanContent() {
                       value={plan.name}
                       onChange={(e) => {
                         updatePlan('name', e.target.value);
-                        // Auto-generate slug
                         const slug = e.target.value
                           .toLowerCase()
                           .replace(/[^a-z0-9]+/g, '-')
                           .replace(/^-|-$/g, '');
                         updatePlan('slug', slug);
                       }}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500"
                       placeholder="e.g., Growth Plan"
                       required
                     />
@@ -477,7 +515,7 @@ function CreatePlanContent() {
                       type="text"
                       value={plan.slug}
                       onChange={(e) => updatePlan('slug', e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-gray-50"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 bg-gray-50"
                       placeholder="growth-plan"
                       required
                     />
@@ -533,7 +571,7 @@ function CreatePlanContent() {
               </div>
             </div>
 
-            {/* Fees & Seats */}
+            {/* 2️⃣ Fees & Seats */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Fees & Seats</h2>
               <div className="space-y-4">
@@ -663,13 +701,16 @@ function CreatePlanContent() {
             </div>
           </div>
 
-          {/* Right column - Invoice Preview & Quick Summary */}
+          {/* Right column - Preview Panels */}
           <div className="col-span-1 space-y-6">
             {/* Invoice Preview */}
             <div className="bg-gradient-to-br from-indigo-50 to-white rounded-xl shadow-sm p-6 border border-indigo-100 sticky top-24">
               <h3 className="text-sm font-medium text-indigo-900 mb-3">📊 Invoice Preview</h3>
               <p className="text-xs text-indigo-700 mb-4">
-                Based on sample usage: 5 seats, 150 messages, 20 articles, 50 voice minutes
+                {agent.agentType === 'voice' 
+                  ? 'Based on sample: 5 seats, 50 voice minutes'
+                  : 'Based on sample: 5 seats, 150 messages, 20 articles'
+                }
               </p>
               <div className="text-3xl font-bold text-indigo-900">
                 ₹{calculateInvoice()}
@@ -699,6 +740,28 @@ function CreatePlanContent() {
               </div>
             </div>
 
+            {/* 🆕 Subscription Preview */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">📅 Subscription Preview</h3>
+              <div className="text-sm text-gray-600 space-y-2">
+                <div className="flex justify-between">
+                  <span>Customer subscribes to:</span>
+                  <span className="font-medium">{plan.name || 'Unnamed Plan'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Billing cycle:</span>
+                  <span className="font-medium">{plan.billingFrequency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Invoice generated:</span>
+                  <span className="font-medium">Every {plan.billingFrequency}</span>
+                </div>
+                <div className="border-t pt-2 mt-2 text-xs text-gray-400">
+                  Usage is measured per billing cycle. Overage charges apply after included units.
+                </div>
+              </div>
+            </div>
+
             {/* Quick Actions */}
             <div className="bg-white rounded-xl shadow-sm p-6">
               <button
@@ -718,7 +781,7 @@ function CreatePlanContent() {
           </div>
         </div>
 
-        {/* Usage-Based Pricing Section - Full Width */}
+        {/* 3️⃣ Usage-Based Pricing Section - Full Width */}
         <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Usage-Based Pricing</h2>
           <div className="space-y-6">
@@ -731,6 +794,7 @@ function CreatePlanContent() {
                 billingFrequency: 'Monthly',
                 includedUsage: 0,
                 tiers: [],
+                rounding: 'ceil',
               };
 
               return (
@@ -748,8 +812,8 @@ function CreatePlanContent() {
                         </span>
                       )}
                       <p className="text-xs text-gray-500 mt-1">
-                        1 event = {indicator.humanValueEquivalent} billing unit
-                        {indicator.perMinuteEnabled && ' (converted to minutes)'}
+                        1 {indicator.perMinuteEnabled ? 'minute' : 'event'} = {indicator.humanValueEquivalent} billing unit
+                        {indicator.perMinuteEnabled ? ' (billed per minute)' : ''}
                       </p>
                     </div>
                     <label className="flex items-center gap-1.5">
@@ -818,7 +882,7 @@ function CreatePlanContent() {
                       <div className="grid grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Price (₹/unit)
+                            Price (₹/{indicator.perMinuteEnabled ? 'min' : 'unit'})
                           </label>
                           <input
                             type="number"
@@ -833,7 +897,7 @@ function CreatePlanContent() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Min Commitment
+                            Min Commitment ({indicator.perMinuteEnabled ? 'mins' : 'units'})
                           </label>
                           <input
                             type="number"
@@ -849,7 +913,7 @@ function CreatePlanContent() {
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Included Units
+                            Included ({indicator.perMinuteEnabled ? 'mins' : 'units'})
                           </label>
                           <input
                             type="number"
@@ -865,11 +929,35 @@ function CreatePlanContent() {
                         </div>
                       </div>
 
+                      {/* 🆕 Rounding (for per-minute) */}
+                      {indicator.perMinuteEnabled && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Rounding Rule
+                          </label>
+                          <select
+                            value={config.rounding || 'ceil'}
+                            onChange={(e) =>
+                              updateIndicator(type, indicator.id, {
+                                rounding: e.target.value as 'ceil' | 'floor' | 'exact',
+                              })
+                            }
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white"
+                          >
+                            <option value="ceil">Round up to nearest minute</option>
+                            <option value="floor">Round down to nearest minute</option>
+                            <option value="exact">Bill per second (exact)</option>
+                          </select>
+                        </div>
+                      )}
+
                       {/* Tiers */}
                       {(config.billingType === 'VOLUME' || config.billingType === 'GRADUATED') && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-medium text-gray-700">Tiers</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              Tiers ({indicator.perMinuteEnabled ? 'minutes' : 'units'})
+                            </span>
                             <button
                               type="button"
                               onClick={() => addTier(type, indicator.id)}
@@ -907,7 +995,9 @@ function CreatePlanContent() {
                                   placeholder="To"
                                   min="0"
                                 />
-                                <span className="text-sm">units @ ₹</span>
+                                <span className="text-sm">
+                                  {indicator.perMinuteEnabled ? 'min @ ₹' : 'units @ ₹'}
+                                </span>
                                 <input
                                   type="number"
                                   value={tier.price}
@@ -932,8 +1022,8 @@ function CreatePlanContent() {
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
                             {config.billingType === 'VOLUME'
-                              ? 'All units in a tier are charged at that tier’s rate.'
-                              : 'Only units above the tier threshold are charged at the next rate.'}
+                              ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier’s rate.`
+                              : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
                           </p>
                         </div>
                       )}
@@ -945,9 +1035,9 @@ function CreatePlanContent() {
           </div>
         </div>
 
-        {/* Hard Limits */}
+        {/* 4️⃣ Limits & Enforcement */}
         <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Hard Limits</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Limits & Enforcement</h2>
           <div className="grid grid-cols-2 gap-6 max-w-2xl">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

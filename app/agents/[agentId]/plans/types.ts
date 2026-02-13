@@ -26,6 +26,7 @@ export interface IndicatorPricing {
     minimumCommitment?: number;
     includedUsage: number;
     tiers?: Tier[];
+    rounding?: 'ceil' | 'floor' | 'exact';   // 🆕
 }
 
 export interface SeatPricing {
