@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { getPlan, savePlan, Plan } from '../plan-storage';
-import { Agent, BillingType, BillingFrequency, Tier } from '../types';
+import { getPlan, savePlan } from '../plan-storage';
+import { Agent, Plan, BillingType, BillingFrequency, Tier } from '../types';
 
 // ---------- STATIC AGENT DATA ----------
 const agents: Record<string, Agent> = {
@@ -146,7 +146,7 @@ const formatPrice = (price: number, currency: string = 'INR') => {
 };
 
 // ---------- MAIN CREATE/EDIT PAGE ----------
-export default function CreatePlanPage() {
+function CreatePlanContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -202,25 +202,25 @@ export default function CreatePlanPage() {
 
   // ---------- Handlers ----------
   const updatePlan = <K extends keyof Plan>(field: K, value: Plan[K]) => {
-    setPlan((prev) => ({ ...prev, [field]: value, updatedAt: new Date().toISOString() }));
+    setPlan((prev: Plan) => ({ ...prev, [field]: value, updatedAt: new Date().toISOString() }));
   };
 
   const updateSetupFee = (updates: Partial<typeof plan.setupFee>) =>
-    setPlan((prev) => ({ 
+    setPlan((prev: Plan) => ({ 
       ...prev, 
       setupFee: { ...prev.setupFee, ...updates },
       updatedAt: new Date().toISOString() 
     }));
 
   const updatePlatformFee = (updates: Partial<typeof plan.platformFee>) =>
-    setPlan((prev) => ({ 
+    setPlan((prev: Plan) => ({ 
       ...prev, 
       platformFee: { ...prev.platformFee, ...updates },
       updatedAt: new Date().toISOString() 
     }));
 
   const updateSeatBased = (updates: Partial<typeof plan.seatBased>) =>
-    setPlan((prev) => ({ 
+    setPlan((prev: Plan) => ({ 
       ...prev, 
       seatBased: { ...prev.seatBased, ...updates },
       updatedAt: new Date().toISOString() 
@@ -231,7 +231,7 @@ export default function CreatePlanPage() {
     indicatorId: string,
     updates: Partial<any>
   ) => {
-    setPlan((prev) => {
+    setPlan((prev: Plan) => {
       const current = prev[type][indicatorId] || {
         enabled: false,
         billingType: 'FLAT',
@@ -274,7 +274,7 @@ export default function CreatePlanPage() {
   ) => {
     const current = plan[type][indicatorId];
     if (!current) return;
-    const updatedTiers = (current.tiers || []).map((t) =>
+    const updatedTiers = (current.tiers || []).map((t: Tier) =>
       t.id === tierId ? { ...t, [field]: value } : t
     );
     updateIndicator(type, indicatorId, { tiers: updatedTiers });
@@ -284,7 +284,7 @@ export default function CreatePlanPage() {
     const current = plan[type][indicatorId];
     if (!current) return;
     updateIndicator(type, indicatorId, {
-      tiers: (current.tiers || []).filter((t) => t.id !== tierId),
+      tiers: (current.tiers || []).filter((t: Tier) => t.id !== tierId),
     });
   };
 
@@ -299,16 +299,16 @@ export default function CreatePlanPage() {
     newPlan.hardLimits = { ...newPlan.hardLimits, ...preset.hardLimits };
 
     agent.indicators.forEach((ind) => {
-      if (ind.type === 'ACTIVITY' && preset.activityBased[ind.id]) {
+      if (ind.type === 'ACTIVITY' && (preset.activityBased as any)[ind.id]) {
         newPlan.activityBased[ind.id] = {
           ...newPlan.activityBased[ind.id],
-          ...preset.activityBased[ind.id],
+          ...(preset.activityBased as any)[ind.id],
         };
       }
-      if (ind.type === 'OUTCOME' && preset.outcomeBased[ind.id]) {
+      if (ind.type === 'OUTCOME' && (preset.outcomeBased as any)[ind.id]) {
         newPlan.outcomeBased[ind.id] = {
           ...newPlan.outcomeBased[ind.id],
-          ...preset.outcomeBased[ind.id],
+          ...(preset.outcomeBased as any)[ind.id],
         };
       }
     });
@@ -354,7 +354,7 @@ export default function CreatePlanPage() {
         const tiers = cfg.tiers || [];
         let remaining = overage;
         let tierCost = 0;
-        for (const tier of tiers.sort((a, b) => a.from - b.from)) {
+        for (const tier of tiers.sort((a: Tier, b: Tier) => a.from - b.from)) {
           const tierUnits = tier.to === 0
             ? remaining
             : Math.min(remaining, tier.to - tier.from + 1);
@@ -882,7 +882,7 @@ export default function CreatePlanPage() {
                             </button>
                           </div>
                           <div className="space-y-2">
-                            {config.tiers?.map((tier, idx) => (
+                            {config.tiers?.map((tier: Tier, idx: number) => (
                               <div key={tier.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
                                 <span className="text-gray-500 text-sm w-6">{idx + 1}.</span>
                                 <input
@@ -957,7 +957,7 @@ export default function CreatePlanPage() {
                 type="number"
                 value={plan.hardLimits.tokensPerMonth}
                 onChange={(e) =>
-                  setPlan((prev) => ({
+                  setPlan((prev: Plan) => ({
                     ...prev,
                     hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(e.target.value) },
                     updatedAt: new Date().toISOString()
@@ -976,7 +976,7 @@ export default function CreatePlanPage() {
                 type="number"
                 value={plan.hardLimits.apiCallsPerMonth}
                 onChange={(e) =>
-                  setPlan((prev) => ({
+                  setPlan((prev: Plan) => ({
                     ...prev,
                     hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(e.target.value) },
                     updatedAt: new Date().toISOString()
@@ -991,5 +991,13 @@ export default function CreatePlanPage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function CreatePlanPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <CreatePlanContent />
+    </Suspense>
   );
 }

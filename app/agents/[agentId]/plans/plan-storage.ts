@@ -1,33 +1,9 @@
 // plan-storage.ts
-import { Plan } from './types'; // We'll define types in a shared file
+// We'll define types in a shared file
+
+import { Plan } from "./types";
 
 export const STORAGE_KEY = 'agent_plans';
-
-export interface Plan {
-    id: string;
-    agentId: string;
-    name: string;
-    slug: string;
-    description: string;
-    billingFrequency: 'Monthly' | 'Quarterly' | 'Annual' | 'OneTime';
-    currency: string;
-    basePrice: number;
-    setupFee: { enabled: boolean; price: number; billingFrequency?: string };
-    platformFee: { enabled: boolean; price: number; billingFrequency?: string };
-    seatBased: {
-        enabled: boolean;
-        billingType: 'FLAT' | 'VOLUME' | 'GRADUATED';
-        price: number;
-        billingFrequency: string;
-        minimumCommitment: number;
-        includedUsage: number;
-    };
-    activityBased: Record<string, any>;
-    outcomeBased: Record<string, any>;
-    hardLimits: { tokensPerMonth: number; apiCallsPerMonth: number };
-    createdAt: string;
-    updatedAt: string;
-}
 
 export const getPlans = (): Plan[] => {
     if (typeof window === 'undefined') return [];

@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { getPlansByAgent, deletePlan, Plan, STORAGE_KEY } from './plan-storage';
-import { Agent } from './types';
+import { getPlansByAgent, deletePlan, STORAGE_KEY } from './plan-storage';
+import { Agent, Plan } from './types';
 
 // ---------- STATIC AGENT DATA ----------
 const agents: Record<string, Agent> = {
@@ -217,7 +217,7 @@ export default function PlansListPage() {
   const handleDelete = (planId: string) => {
     if (confirm('Are you sure you want to delete this plan?')) {
       deletePlan(planId);
-      setPlans(prev => prev.filter(p => p.id !== planId));
+      setPlans((prev: Plan[]) => prev.filter(p => p.id !== planId));
     }
   };
 
