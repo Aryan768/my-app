@@ -1295,69 +1295,69 @@ function CreatePlanContent() {
               </div>
             </div>
 
-            {/* 4️⃣ Limits & Enforcement */}
+            {/* 4️⃣ Limits & Enforcement - Full Width */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Limits & Enforcement</h2>
               <div className="grid grid-cols-2 gap-6 max-w-2xl">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Max tokens per month
-                    </label>
-                    <input
-                      type="number"
-                      value={plan.hardLimits.tokensPerMonth || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || val === '0') {
-                          setPlan((prev: Plan) => ({
-                            ...prev,
-                            hardLimits: { ...prev.hardLimits, tokensPerMonth: 0 },
-                            updatedAt: new Date().toISOString()
-                          }))
-                        } else {
-                          setPlan((prev: Plan) => ({
-                            ...prev,
-                            hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(val) },
-                            updatedAt: new Date().toISOString()
-                          }))
-                        }
-                      }}
-                      onWheel={handleNumberInputWheel}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                      placeholder="e.g., 500000"
-                      min="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Max API calls per month
-                    </label>
-                    <input
-                      type="number"
-                      value={plan.hardLimits.apiCallsPerMonth || ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || val === '0') {
-                          setPlan((prev: Plan) => ({
-                            ...prev,
-                            hardLimits: { ...prev.hardLimits, apiCallsPerMonth: 0 },
-                            updatedAt: new Date().toISOString()
-                          }))
-                        } else {
-                          setPlan((prev: Plan) => ({
-                            ...prev,
-                            hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(val) },
-                            updatedAt: new Date().toISOString()
-                          }))
-                        }
-                      }}
-                      onWheel={handleNumberInputWheel}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                      placeholder="e.g., 5000"
-                      min="0"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Max tokens per month
+                  </label>
+                  <input
+                    type="number"
+                    value={plan.hardLimits.tokensPerMonth || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || val === '0') {
+                        setPlan((prev: Plan) => ({
+                          ...prev,
+                          hardLimits: { ...prev.hardLimits, tokensPerMonth: 0 },
+                          updatedAt: new Date().toISOString()
+                        }))
+                      } else {
+                        setPlan((prev: Plan) => ({
+                          ...prev,
+                          hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(val) },
+                          updatedAt: new Date().toISOString()
+                        }))
+                      }
+                    }}
+                    onWheel={handleNumberInputWheel}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                    placeholder="e.g., 500000"
+                    min="0"
+                  />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Max API calls per month
+                  </label>
+                  <input
+                    type="number"
+                    value={plan.hardLimits.apiCallsPerMonth || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || val === '0') {
+                        setPlan((prev: Plan) => ({
+                          ...prev,
+                          hardLimits: { ...prev.hardLimits, apiCallsPerMonth: 0 },
+                          updatedAt: new Date().toISOString()
+                        }))
+                      } else {
+                        setPlan((prev: Plan) => ({
+                          ...prev,
+                          hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(val) },
+                          updatedAt: new Date().toISOString()
+                        }))
+                      }
+                    }}
+                    onWheel={handleNumberInputWheel}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                    placeholder="e.g., 5000"
+                    min="0"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
