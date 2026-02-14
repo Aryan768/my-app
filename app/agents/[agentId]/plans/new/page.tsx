@@ -543,9 +543,9 @@ function CreatePlanContent() {
         )}
 
         {/* Main form - grid layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-8">
           {/* Left column - Basic Info & Fees & Seats */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="space-y-8">
             {/* 1️⃣ Plan Identity */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Plan Identity</h2>
@@ -814,7 +814,7 @@ function CreatePlanContent() {
           </div>
 
           {/* Right column - Preview Panels */}
-          <div className="space-y-8">
+          <div className="space-y-8 lg:sticky lg:top-8 lg:h-fit">
             {/* Invoice Preview */}
             <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
               <div className="flex items-center justify-between mb-4">
