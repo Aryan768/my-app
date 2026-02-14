@@ -834,22 +834,20 @@ function CreatePlanContent() {
                   {/* Header */}
                   <div className="flex items-start justify-between mb-4">
                     <div>
-            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-bold text-emerald-900">Invoice Preview</h3>
-                <select
-                  value={plan.currency}
-                  onChange={(e) => updatePlan('currency', e.target.value)}
-                  className="text-xs border border-emerald-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                >
-                  <option value="INR">₹ INR</option>
-                  <option value="USD">$ USD</option>
-                  <option value="EUR">€ EUR</option>
-                  <option value="GBP">£ GBP</option>
-                  <option value="AUD">A$ AUD</option>
-                  <option value="CAD">C$ CAD</option>
-                </select>
-              </div>
+                      <span className="font-medium text-gray-900">{indicator.name}</span>
+                      <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full">
+                        {indicator.type}
+                      </span>
+                      {indicator.perMinuteEnabled && (
+                        <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                          per minute
+                        </span>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        1 {indicator.perMinuteEnabled ? 'minute' : 'event'} = {indicator.humanValueEquivalent} billing unit
+                        {indicator.perMinuteEnabled ? ' (billed per minute)' : ''}
+                      </p>
+                    </div>
               
               {/* Seat Slider */}
               {plan.seatBased.enabled && (
@@ -860,18 +858,154 @@ function CreatePlanContent() {
                     </label>
                     <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
                   </div>
+                  {config.enabled && (
+                    <div className="space-y-4 border-t pt-4">
+                      {/* Billing Type Selection */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Billing Type</label>
+                        <select
+                          value={config.billingType}
+                          onChange={(e) => updateIndicator(type, indicator.id, { billingType: e.target.value as any })}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="FLAT">Flat Rate</option>
+                          <option value="VOLUME">Volume-Based</option>
+                          <option value="GRADUATED">Graduated</option>
+                        </select>
+                      </div>
+
+                      {/* Price Input */}
+                      {config.billingType === 'FLAT' && (
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Price per unit (in paise)</label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">₹</span>
+                            <input
+                              type="number"
+                              value={config.price || 0}
+                              onChange={(e) => updateIndicator(type, indicator.id, { price: Number(e.target.value) })}
+                              onWheel={handleNumberInputWheel}
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                              step="0.01"
+                              min="0"
+                            />
+                            <span className="text-xs text-gray-500">/unit</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Included Usage */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Included Usage (per {plan.billingFrequency})</label>
+                        <input
+                          type="number"
+                          value={config.includedUsage || 0}
+                          onChange={(e) => updateIndicator(type, indicator.id, { includedUsage: Number(e.target.value) })}
+                          onWheel={handleNumberInputWheel}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500"
+                          step="1"
+                          min="0"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Charges apply only for usage above this threshold.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+              </div>
+            </div>
+
+            {/* 4️⃣ Limits & Enforcement - Full Width */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Limits & Enforcement</h2>
+              <div className="grid grid-cols-2 gap-6 max-w-2xl">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Max tokens per month</label>
                   <input
-                    type="range"
+                    type="number"
+                    value={plan.hardLimits.tokensPerMonth || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPlan((prev: Plan) => ({
+                        ...prev,
+                        hardLimits: { ...prev.hardLimits, tokensPerMonth: val === '' ? 0 : Number(val) },
+                        updatedAt: new Date().toISOString()
+                      }))
+                    }}
+                    onWheel={handleNumberInputWheel}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    placeholder="e.g., 500000"
                     min="0"
-                    max="100"
-                    value={sampleSeats}
-                    onChange={(e) => setSampleSeats(Number(e.target.value))}
-                    className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                   />
-                  <div className="flex justify-between text-xs text-emerald-600 mt-1">
-                    <span>0</span>
-                    <span>100</span>
-                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Max API calls per month</label>
+                  <input
+                    type="number"
+                    value={plan.hardLimits.apiCallsPerMonth || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPlan((prev: Plan) => ({
+                        ...prev,
+                        hardLimits: { ...prev.hardLimits, apiCallsPerMonth: val === '' ? 0 : Number(val) },
+                        updatedAt: new Date().toISOString()
+                      }))
+                    }}
+                    onWheel={handleNumberInputWheel}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    placeholder="e.g., 5000"
+                    min="0"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column (1/3 width) - Sticky Preview Sections */}
+          <div className="space-y-8 lg:sticky lg:top-24 lg:h-fit">
+            {/* Invoice Preview */}
+            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
+              <h3 className="text-base font-bold text-emerald-900 mb-4">Invoice Preview</h3>
+              <div className="text-4xl font-bold text-emerald-900">
+                {formatPrice(calculateInvoiceBreakdown().total * 100, plan.currency)}
+                <span className="text-base font-normal text-emerald-600 ml-2">/{plan.billingFrequency.toLowerCase()}</span>
+              </div>
+            </div>
+
+            {/* Subscription Preview */}
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
+              <h3 className="text-base font-bold text-gray-900 mb-4">Subscription Preview</h3>
+              <div className="text-sm text-gray-600 space-y-2">
+                <div className="flex justify-between">
+                  <span>Plan:</span>
+                  <span className="font-medium">{plan.name || 'Unnamed Plan'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Billing cycle:</span>
+                  <span className="font-medium">{plan.billingFrequency}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3 lg:flex-col-reverse">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg"
+              >
+                {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
+              </button>
+              <Link
+                href={`/agents/${agentId}/plans`}
+                className="w-full px-6 py-3 text-center text-gray-700 font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </Link>
+            </div>
+          </div>
+        </div>
                 </div>
               )}
 
@@ -1379,135 +1513,19 @@ function CreatePlanContent() {
                   <option value="AUD">A$ AUD</option>
                   <option value="CAD">C$ CAD</option>
                 </select>
-              </div>
-              
-              {/* Seat Slider */}
-              {plan.seatBased.enabled && (
-                <div className="mb-6 pb-6 border-b border-emerald-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-semibold text-emerald-900">
-                      Sample Seats
+                    </div>
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={config.enabled}
+                        onChange={(e) =>
+                          updateIndicator(type, indicator.id, { enabled: e.target.checked })
+                        }
+                        className="rounded border-gray-300 text-indigo-600"
+                      />
+                      <span className="text-sm font-medium">Enabled</span>
                     </label>
-                    <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={sampleSeats}
-                    onChange={(e) => setSampleSeats(Number(e.target.value))}
-                    className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                  />
-                  <div className="flex justify-between text-xs text-emerald-600 mt-1">
-                    <span>0</span>
-                    <span>100</span>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-emerald-700 mb-5">
-                {agent.agentType === 'voice' 
-                  ? `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 50 voice minutes`
-                  : `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 150 messages, 20 articles`
-                }
-              </p>
-              
-              <div className="text-4xl font-bold text-emerald-900">
-                {formatPrice(calculateInvoiceBreakdown().total * 100, plan.currency)}
-                <span className="text-base font-normal text-emerald-600 ml-2">
-                  /{plan.billingFrequency.toLowerCase()}
-                </span>
-              </div>
-              
-              <div className="mt-6 pt-6 border-t border-emerald-200">
-                <h4 className="text-xs font-bold text-emerald-900 mb-4 uppercase tracking-wide">Breakdown</h4>
-                <div className="space-y-3 text-xs text-emerald-800">
-                  {(() => {
-                    const breakdown = calculateInvoiceBreakdown();
-                    return (
-                      <>
-                        {breakdown.basePrice > 0 && (
-                          <div className="flex justify-between">
-                            <span>Base price:</span>
-                            <span className="font-medium">{formatPrice(breakdown.basePrice * 100, plan.currency)}</span>
-                          </div>
-                        )}
-                        {breakdown.setupFee > 0 && (
-                          <div className="flex justify-between">
-                            <span>Setup fee:</span>
-                            <span className="font-medium">{formatPrice(breakdown.setupFee * 100, plan.currency)}</span>
-                          </div>
-                        )}
-                        {breakdown.platformFee > 0 && (
-                          <div className="flex justify-between">
-                            <span>Platform fee:</span>
-                            <span className="font-medium">{formatPrice(breakdown.platformFee * 100, plan.currency)}</span>
-                          </div>
-                        )}
-                        {plan.seatBased.enabled && (
-                          <div className="flex justify-between">
-                            <span>
-                              Seats ({Math.max(effectiveSampleSeats, plan.seatBased.minimumCommitment)} @ {formatPrice(plan.seatBased.price, plan.currency)}/seat):
-                            </span>
-                            <span className="font-medium">{formatPrice(breakdown.seatCharge * 100, plan.currency)}</span>
-                          </div>
-                        )}
-                        {Object.entries(breakdown.indicatorCharges).map(([name, charge]) => (
-                          <div key={name} className="flex justify-between">
-                            <span>{name}:</span>
-                            <span className="font-medium">{formatPrice(charge * 100, plan.currency)}</span>
-                          </div>
-                        ))}
-                      </>
-                    );
-                  })()}
-                  {Object.values(calculateInvoiceBreakdown().indicatorCharges).length === 0 && calculateInvoiceBreakdown().basePrice === 0 && calculateInvoiceBreakdown().setupFee === 0 && calculateInvoiceBreakdown().platformFee === 0 && calculateInvoiceBreakdown().seatCharge === 0 && (
-                    <div className="text-emerald-600 italic">No charges configured</div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Subscription Preview */}
-            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
-              <h3 className="text-base font-bold text-gray-900 mb-4">Subscription Preview</h3>
-              <div className="text-sm text-gray-600 space-y-2">
-                <div className="flex justify-between">
-                  <span>Customer subscribes to:</span>
-                  <span className="font-medium">{plan.name || 'Unnamed Plan'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Billing cycle:</span>
-                  <span className="font-medium">{plan.billingFrequency}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Invoice generated:</span>
-                  <span className="font-medium">Every {plan.billingFrequency}</span>
-                </div>
-                <div className="border-t pt-2 mt-2 text-xs text-gray-400">
-                  Usage is measured per billing cycle. Overage charges apply after included units.
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons - At Bottom of Right Column */}
-            <div className="flex flex-col gap-3 lg:flex-col-reverse">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
-              >
-                {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
-              </button>
-              <Link
-                href={`/agents/${agentId}/plans`}
-                className="w-full px-6 py-3 text-center text-gray-700 font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                Cancel
-              </Link>
-            </div>
-          </div>
-        </div>
       </form>
     </div>
   );
