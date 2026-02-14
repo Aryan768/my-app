@@ -367,9 +367,10 @@ function CreatePlanContent() {
     let platformFee = plan.platformFee.enabled ? plan.platformFee.price / 100 : 0;
     let seatCharge = 0;
 
-    if (plan.seatBased.enabled && seats > 0) {
+    if (plan.seatBased.enabled) {
+      const chargeableSeats = Math.max(seats, plan.seatBased.minimumCommitment);
       const included = plan.seatBased.includedUsage;
-      const extra = Math.max(0, seats - included);
+      const extra = Math.max(0, chargeableSeats - included);
       seatCharge = (extra * plan.seatBased.price) / 100;
     }
 
@@ -874,9 +875,11 @@ function CreatePlanContent() {
                             <span className="font-medium">{formatPrice(breakdown.platformFee * 100, plan.currency)}</span>
                           </div>
                         )}
-                        {breakdown.seatCharge > 0 && (
+                        {plan.seatBased.enabled && (
                           <div className="flex justify-between">
-                            <span>Seat charge ({effectiveSampleSeats} × {formatPrice(plan.seatBased.price, plan.currency)}):</span>
+                            <span>
+                              Seats ({Math.max(effectiveSampleSeats, plan.seatBased.minimumCommitment)} @ {formatPrice(plan.seatBased.price, plan.currency)}/seat):
+                            </span>
                             <span className="font-medium">{formatPrice(breakdown.seatCharge * 100, plan.currency)}</span>
                           </div>
                         )}
