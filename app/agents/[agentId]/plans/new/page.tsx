@@ -355,6 +355,11 @@ function CreatePlanContent() {
   // Preview model for testing model overrides
   const PREVIEW_MODEL = 'gpt-4o';
 
+  // Prevent scroll wheel from changing number input values
+  const handleNumberInputWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
   // ---------- Invoice breakdown calculation ----------
   interface InvoiceBreakdown {
     basePrice: number;
@@ -626,6 +631,7 @@ function CreatePlanContent() {
                             updatePlan('basePrice', Number(val) * 100);
                           }
                         }}
+                        onWheel={handleNumberInputWheel}
                         className="w-full border border-gray-300 rounded-lg pl-8 pr-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         placeholder="0.00"
                         step="0.01"
@@ -666,6 +672,7 @@ function CreatePlanContent() {
                             updateSetupFee({ price: Number(val) * 100 });
                           }
                         }}
+                        onWheel={handleNumberInputWheel}
                         className="w-24 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         step="0.01"
                         min="0"
@@ -700,6 +707,7 @@ function CreatePlanContent() {
                               updatePlatformFee({ price: Number(val) * 100 });
                             }
                           }}
+                          onWheel={handleNumberInputWheel}
                           className="w-24 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                           step="0.01"
                           min="0"
@@ -733,55 +741,58 @@ function CreatePlanContent() {
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Price per seat (₹)</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.price / 100 || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || val === '0') {
-                              updateSeatBased({ price: 0 });
-                            } else {
-                              updateSeatBased({ price: Number(val) * 100 });
-                            }
-                          }}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                          step="0.01"
-                          min="0"
-                        />
+                      <input
+                        type="number"
+                        value={plan.seatBased.price / 100 || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ price: 0 });
+                          } else {
+                            updateSeatBased({ price: Number(val) * 100 });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        step="0.01"
+                        min="0"
+                      />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Included seats</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.includedUsage || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || val === '0') {
-                              updateSeatBased({ includedUsage: 0 });
-                            } else {
-                              updateSeatBased({ includedUsage: Number(val) });
-                            }
-                          }}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                          min="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Minimum commitment (seats)</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.minimumCommitment || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || val === '0') {
-                              updateSeatBased({ minimumCommitment: 0 });
-                            } else {
-                              updateSeatBased({ minimumCommitment: Number(val) });
-                            }
-                          }}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                          min="0"
-                        />
+                      <input
+                        type="number"
+                        value={plan.seatBased.includedUsage || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ includedUsage: 0 });
+                          } else {
+                            updateSeatBased({ includedUsage: Number(val) });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Minimum commitment (seats)</label>
+                      <input
+                        type="number"
+                        value={plan.seatBased.minimumCommitment || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ minimumCommitment: 0 });
+                          } else {
+                            updateSeatBased({ minimumCommitment: Number(val) });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        min="0"
+                      />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Billing frequency</label>
@@ -1064,6 +1075,7 @@ function CreatePlanContent() {
                                 updateIndicator(type, indicator.id, { price: Number(val) });
                               }
                             }}
+                            onWheel={handleNumberInputWheel}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             step="0.01"
                             min="0"
@@ -1084,6 +1096,7 @@ function CreatePlanContent() {
                                 updateIndicator(type, indicator.id, { minimumCommitment: Number(val) });
                               }
                             }}
+                            onWheel={handleNumberInputWheel}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             min="0"
                           />
@@ -1103,6 +1116,7 @@ function CreatePlanContent() {
                                 updateIndicator(type, indicator.id, { includedUsage: Number(val) });
                               }
                             }}
+                            onWheel={handleNumberInputWheel}
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             min="0"
                           />
@@ -1164,6 +1178,7 @@ function CreatePlanContent() {
                                       updateTier(type, indicator.id, tier.id, 'from', Number(val));
                                     }
                                   }}
+                                  onWheel={handleNumberInputWheel}
                                   className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   placeholder="From"
                                   min="0"
@@ -1176,6 +1191,7 @@ function CreatePlanContent() {
                                     const val = e.target.value === '' ? 0 : Number(e.target.value);
                                     updateTier(type, indicator.id, tier.id, 'to', val);
                                   }}
+                                  onWheel={handleNumberInputWheel}
                                   className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   placeholder="To"
                                   min="0"
@@ -1194,6 +1210,7 @@ function CreatePlanContent() {
                                       updateTier(type, indicator.id, tier.id, 'price', Number(val));
                                     }
                                   }}
+                                  onWheel={handleNumberInputWheel}
                                   className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   step="0.01"
                                   min="0"
@@ -1265,6 +1282,7 @@ function CreatePlanContent() {
                                     }
                                     updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
                                   }}
+                                  onWheel={handleNumberInputWheel}
                                   className="w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   step="0.01"
                                   min="0"
@@ -1325,6 +1343,7 @@ function CreatePlanContent() {
                     }))
                   }
                 }}
+                onWheel={handleNumberInputWheel}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                 placeholder="e.g., 500000"
                 min="0"
@@ -1353,6 +1372,7 @@ function CreatePlanContent() {
                     }))
                   }
                 }}
+                onWheel={handleNumberInputWheel}
                 className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                 placeholder="e.g., 5000"
                 min="0"

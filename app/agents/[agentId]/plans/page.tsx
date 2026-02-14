@@ -83,12 +83,21 @@ function PlanCard({
       if (!cfg?.enabled) return null;
 
       const unitText = ind.perMinuteEnabled ? 'min' : 'unit';
+      let summary = '';
       if (cfg.billingType === 'FLAT') {
-        return `${ind.name}: ${formatPrice(cfg.price * 100, plan.currency)}/${unitText}`;
+        summary = `${ind.name}: ${formatPrice(cfg.price * 100, plan.currency)}/${unitText}`;
       } else {
         const tierCount = cfg.tiers?.length || 0;
-        return `${ind.name}: ${cfg.billingType} (${tierCount} tiers)`;
+        summary = `${ind.name}: ${cfg.billingType} (${tierCount} tiers)`;
       }
+      
+      // Add model override indicator if present
+      if (cfg.modelOverrides && Object.keys(cfg.modelOverrides).length > 0) {
+        const modelCount = Object.keys(cfg.modelOverrides).length;
+        summary += ` (${modelCount} model ${modelCount === 1 ? 'override' : 'overrides'})`;
+      }
+      
+      return summary;
     })
     .filter(Boolean);
 
