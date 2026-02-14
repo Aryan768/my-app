@@ -848,16 +848,17 @@ function CreatePlanContent() {
                         {indicator.perMinuteEnabled ? ' (billed per minute)' : ''}
                       </p>
                     </div>
-              
-              {/* Seat Slider */}
-              {plan.seatBased.enabled && (
-                <div className="mb-6 pb-6 border-b border-emerald-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-semibold text-emerald-900">
-                      Sample Seats
+                    <label className="flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={config.enabled}
+                        onChange={(e) => updateIndicator(type, indicator.id, { enabled: e.target.checked })}
+                        className="rounded border-gray-300 text-indigo-600"
+                      />
+                      <span className="text-sm font-medium">Enabled</span>
                     </label>
-                    <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
                   </div>
+
                   {config.enabled && (
                     <div className="space-y-4 border-t pt-4">
                       {/* Billing Type Selection */}
