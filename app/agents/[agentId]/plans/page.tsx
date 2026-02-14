@@ -76,13 +76,13 @@ function InvoicePreviewModal({
   onSeatsChange: (seats: number) => void;
 }) {
   const calculateBreakdown = () => {
-    let baseCharge = plan.basePrice;
+    // Convert all paise values to rupees for consistent calculation
+    let basePrice = plan.basePrice / 100;
+    let setupFee = plan.setupFee.enabled ? plan.setupFee.price / 100 : 0;
+    let platformFee = plan.platformFee.enabled ? plan.platformFee.price / 100 : 0;
     let seatCharge = 0;
-    const indicatorCharges: Record<string, number> = {};
-    let setupFee = plan.setupFee.enabled ? plan.setupFee.price : 0;
-    let platformFee = plan.platformFee.enabled ? plan.platformFee.price : 0;
 
-    // Seat-based charges
+    // Seat-based charges (in rupees)
     if (plan.seatBased.enabled) {
       const chargeableSeats = Math.max(sampleSeats, plan.seatBased.minimumCommitment);
       const includedSeats = plan.seatBased.includedUsage;
@@ -90,41 +90,68 @@ function InvoicePreviewModal({
       seatCharge = (extra * plan.seatBased.price) / 100;
     }
 
-    // Activity and outcome indicators
-    const processIndicators = (type: 'ACTIVITY' | 'OUTCOME') => {
-      agent.indicators
-        .filter((ind) => ind.type === type)
-        .forEach((indicator) => {
-          const config = type === 'ACTIVITY' ? plan.activityBased[indicator.id] : plan.outcomeBased[indicator.id];
-          if (!config?.enabled) return;
-
-          const sampleUsage = indicator.humanValueEquivalent * 1000;
-          const included = config.includedUsage;
-          const overage = Math.max(0, sampleUsage - included);
-
-          if (config.billingType === 'FLAT') {
-            const cost = (overage * config.price) / 100;
-            if (cost > 0) {
-              indicatorCharges[indicator.name] = cost;
-            }
-          }
-        });
+    // Sample usage data (same as edit page)
+    const sampleUsageData: Record<string, number> = {
+      "1770918079308": 150, // message-sent
+      "1770960227498": 20,  // article-generated
+      "1770967230303": 50,  // voice-generated (minutes)
     };
 
-    processIndicators('ACTIVITY');
-    processIndicators('OUTCOME');
+    const indicatorCharges: Record<string, number> = {};
 
-    const subtotal = baseCharge + seatCharge + Object.values(indicatorCharges).reduce((a, b) => a + b, 0);
-    const total = subtotal + setupFee + platformFee;
+    agent.indicators.forEach((ind) => {
+      const type = ind.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
+      const cfg = plan[type][ind.id];
+      if (!cfg?.enabled) return;
+
+      let units = sampleUsageData[ind.id] || 0;
+      
+      // Apply rounding for per-minute indicators
+      let billingUnits = units;
+      if (ind.perMinuteEnabled) {
+        if (cfg.rounding === 'ceil') {
+          billingUnits = Math.ceil(units);
+        } else if (cfg.rounding === 'floor') {
+          billingUnits = Math.floor(units);
+        }
+      } else {
+        billingUnits = units * ind.humanValueEquivalent;
+      }
+
+      const included = cfg.includedUsage || 0;
+      const overage = Math.max(0, billingUnits - included);
+
+      let indicatorCost = 0;
+      if (cfg.billingType === 'FLAT') {
+        indicatorCost = overage * cfg.price / 100;
+      } else if (cfg.billingType === 'VOLUME' || cfg.billingType === 'GRADUATED') {
+        const tiers = cfg.tiers || [];
+        let remaining = overage;
+        for (const tier of tiers.sort((a, b) => a.from - b.from)) {
+          const tierUnits = tier.to === 0
+            ? remaining
+            : Math.min(remaining, tier.to - tier.from + 1);
+          indicatorCost += (tierUnits * (tier.price || 0)) / 100;
+          remaining -= tierUnits;
+          if (remaining <= 0) break;
+        }
+      }
+      
+      if (indicatorCost > 0) {
+        indicatorCharges[ind.name] = indicatorCost;
+      }
+    });
+
+    const subtotal = basePrice + setupFee + platformFee + seatCharge + Object.values(indicatorCharges).reduce((a, b) => a + b, 0);
 
     return {
-      baseCharge,
+      basePrice,
       seatCharge,
       indicatorCharges,
       setupFee,
       platformFee,
       subtotal,
-      total
+      total: subtotal
     };
   };
 
@@ -172,7 +199,7 @@ function InvoicePreviewModal({
               {/* Base Price */}
               <div className="flex justify-between">
                 <span className="text-gray-700">Base Price:</span>
-                <span className="font-semibold text-gray-900">{formatPrice(breakdown.baseCharge, plan.currency)}</span>
+                <span className="font-semibold text-gray-900">{formatPrice(breakdown.basePrice * 100, plan.currency)}</span>
               </div>
 
               {/* Seat Charge */}
