@@ -26,7 +26,8 @@ export interface IndicatorPricing {
     minimumCommitment?: number;
     includedUsage: number;
     tiers?: Tier[];
-    rounding?: 'ceil' | 'floor' | 'exact';   // 🆕
+    rounding?: 'ceil' | 'floor' | 'exact';
+    modelOverrides?: Record<string, number>;
 }
 
 export interface SeatPricing {

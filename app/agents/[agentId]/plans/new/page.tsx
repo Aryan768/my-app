@@ -173,6 +173,7 @@ function CreatePlanContent() {
   const [plan, setPlan] = useState<Plan>(() => createEmptyPlan(agentId));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(!!editId);
+  const [sampleSeats, setSampleSeats] = useState<number>(1);
 
   // Load plan if editing
   useEffect(() => {
@@ -255,6 +256,7 @@ function CreatePlanContent() {
         includedUsage: 0,
         tiers: [],
         rounding: 'ceil',
+        modelOverrides: {},
       };
       return {
         ...prev,
@@ -310,6 +312,11 @@ function CreatePlanContent() {
 
     const newPlan = createEmptyPlan(agentId);
     newPlan.name = preset.name;
+    // Auto-generate slug from preset name
+    newPlan.slug = preset.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
     newPlan.basePrice = preset.basePrice;
     newPlan.seatBased = { ...newPlan.seatBased, ...preset.seatBased };
     newPlan.hardLimits = { ...newPlan.hardLimits, ...preset.hardLimits };
@@ -332,25 +339,57 @@ function CreatePlanContent() {
     setPlan(newPlan);
   };
 
-  // ---------- Invoice preview with rounding ----------
-  const calculateInvoice = (): string => {
-    let total = plan.basePrice / 100;
+  // ---------- Determine default seat count for preview ----------
+  const getDefaultSampleSeats = (): number => {
+    if (plan.seatBased.minimumCommitment > 0) {
+      return plan.seatBased.minimumCommitment;
+    } else if (plan.seatBased.includedUsage > 0) {
+      return plan.seatBased.includedUsage;
+    }
+    return 1;
+  };
 
-    if (plan.setupFee.enabled) total += plan.setupFee.price / 100;
-    if (plan.platformFee.enabled) total += plan.platformFee.price / 100;
+  // Use the slider value if seat-based is enabled, otherwise use calculated default
+  const effectiveSampleSeats = plan.seatBased.enabled ? sampleSeats : 0;
+
+  // Preview model for testing model overrides
+  const PREVIEW_MODEL = 'gpt-4o';
+
+  // Prevent scroll wheel from changing number input values
+  const handleNumberInputWheel = (e: React.WheelEvent<HTMLInputElement>) => {
+    e.currentTarget.blur();
+  };
+
+  // ---------- Invoice breakdown calculation ----------
+  interface InvoiceBreakdown {
+    basePrice: number;
+    setupFee: number;
+    platformFee: number;
+    seatCharge: number;
+    indicatorCharges: Record<string, number>;
+    total: number;
+  }
+
+  const calculateInvoiceBreakdown = (seats: number = effectiveSampleSeats): InvoiceBreakdown => {
+    let basePrice = plan.basePrice / 100;
+    let setupFee = plan.setupFee.enabled ? plan.setupFee.price / 100 : 0;
+    let platformFee = plan.platformFee.enabled ? plan.platformFee.price / 100 : 0;
+    let seatCharge = 0;
 
     if (plan.seatBased.enabled) {
-      const seats = 5;
+      const chargeableSeats = Math.max(seats, plan.seatBased.minimumCommitment);
       const included = plan.seatBased.includedUsage;
-      const extra = Math.max(0, seats - included);
-      total += (extra * plan.seatBased.price) / 100;
+      const extra = Math.max(0, chargeableSeats - included);
+      seatCharge = (extra * plan.seatBased.price) / 100;
     }
 
     const sampleUsage: Record<string, number> = {
-      "1770918079308": 150,
-      "1770960227498": 20,
-      "1770967230303": 50,
+      "1770918079308": 150, // message-sent
+      "1770960227498": 20,  // article-generated
+      "1770967230303": 50,  // voice-generated (minutes)
     };
+
+    const indicatorCharges: Record<string, number> = {};
 
     agent.indicators.forEach((ind) => {
       const type = ind.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
@@ -359,15 +398,14 @@ function CreatePlanContent() {
 
       let units = sampleUsage[ind.id] || 0;
       
-      // 🆕 Apply rounding for per-minute indicators
+      // Apply rounding for per-minute indicators
       let billingUnits = units;
       if (ind.perMinuteEnabled) {
         if (cfg.rounding === 'ceil') {
           billingUnits = Math.ceil(units);
         } else if (cfg.rounding === 'floor') {
           billingUnits = Math.floor(units);
-        } // else 'exact' – keep as seconds (units already in seconds? For preview we treat as minutes)
-        // For preview we assume units are in minutes; for exact we keep decimal.
+        }
       } else {
         billingUnits = units * ind.humanValueEquivalent;
       }
@@ -375,25 +413,48 @@ function CreatePlanContent() {
       const included = cfg.includedUsage || 0;
       const overage = Math.max(0, billingUnits - included);
 
+      // Determine the applicable price (use model override if available, else default)
+      let applicablePrice = cfg.price || 0;
+      if (cfg.modelOverrides && cfg.modelOverrides[PREVIEW_MODEL]) {
+        applicablePrice = cfg.modelOverrides[PREVIEW_MODEL];
+      }
+
+      let indicatorCost = 0;
       if (cfg.billingType === 'FLAT') {
-        total += overage * (cfg.price || 0);
+        indicatorCost = overage * applicablePrice / 100;
       } else if (cfg.billingType === 'VOLUME' || cfg.billingType === 'GRADUATED') {
         const tiers = cfg.tiers || [];
         let remaining = overage;
-        let tierCost = 0;
         for (const tier of tiers.sort((a: Tier, b: Tier) => a.from - b.from)) {
           const tierUnits = tier.to === 0
             ? remaining
             : Math.min(remaining, tier.to - tier.from + 1);
-          tierCost += tierUnits * (tier.price || 0);
+          indicatorCost += (tierUnits * (tier.price || 0)) / 100;
           remaining -= tierUnits;
           if (remaining <= 0) break;
         }
-        total += tierCost;
+      }
+      
+      if (indicatorCost > 0) {
+        indicatorCharges[`${ind.name} (${PREVIEW_MODEL})`] = indicatorCost;
       }
     });
 
-    return total.toFixed(2);
+    const total = basePrice + setupFee + platformFee + seatCharge + Object.values(indicatorCharges).reduce((a, b) => a + b, 0);
+
+    return {
+      basePrice,
+      setupFee,
+      platformFee,
+      seatCharge,
+      indicatorCharges,
+      total,
+    };
+  };
+
+  const calculateInvoice = (seats: number = effectiveSampleSeats): string => {
+    const breakdown = calculateInvoiceBreakdown(seats);
+    return breakdown.total.toFixed(2);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -570,6 +631,7 @@ function CreatePlanContent() {
                             updatePlan('basePrice', Number(val) * 100);
                           }
                         }}
+                        onWheel={handleNumberInputWheel}
                         className="w-full border border-gray-300 rounded-lg pl-8 pr-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         placeholder="0.00"
                         step="0.01"
@@ -601,9 +663,17 @@ function CreatePlanContent() {
                       <span className="text-gray-500">₹</span>
                       <input
                         type="number"
-                        value={plan.setupFee.price / 100}
-                        onChange={(e) => updateSetupFee({ price: Number(e.target.value) * 100 })}
-                        className="w-24 border border-gray-300 rounded-lg px-3 py-1.5"
+                        value={plan.setupFee.price / 100 || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSetupFee({ price: 0 });
+                          } else {
+                            updateSetupFee({ price: Number(val) * 100 });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-24 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         step="0.01"
                         min="0"
                       />
@@ -628,9 +698,17 @@ function CreatePlanContent() {
                         <span className="text-gray-500">₹</span>
                         <input
                           type="number"
-                          value={plan.platformFee.price / 100}
-                          onChange={(e) => updatePlatformFee({ price: Number(e.target.value) * 100 })}
-                          className="w-24 border border-gray-300 rounded-lg px-3 py-1.5"
+                          value={plan.platformFee.price / 100 || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '0') {
+                              updatePlatformFee({ price: 0 });
+                            } else {
+                              updatePlatformFee({ price: Number(val) * 100 });
+                            }
+                          }}
+                          onWheel={handleNumberInputWheel}
+                          className="w-24 border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                           step="0.01"
                           min="0"
                         />
@@ -663,41 +741,65 @@ function CreatePlanContent() {
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Price per seat (₹)</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.price / 100}
-                          onChange={(e) => updateSeatBased({ price: Number(e.target.value) * 100 })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
-                          step="0.01"
-                          min="0"
-                        />
+                      <input
+                        type="number"
+                        value={plan.seatBased.price / 100 || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ price: 0 });
+                          } else {
+                            updateSeatBased({ price: Number(val) * 100 });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        step="0.01"
+                        min="0"
+                      />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Included seats</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.includedUsage}
-                          onChange={(e) => updateSeatBased({ includedUsage: Number(e.target.value) })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
-                          min="0"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Minimum commitment</label>
-                        <input
-                          type="number"
-                          value={plan.seatBased.minimumCommitment}
-                          onChange={(e) => updateSeatBased({ minimumCommitment: Number(e.target.value) })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
-                          min="0"
-                        />
+                      <input
+                        type="number"
+                        value={plan.seatBased.includedUsage || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ includedUsage: 0 });
+                          } else {
+                            updateSeatBased({ includedUsage: Number(val) });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        min="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Minimum commitment (seats)</label>
+                      <input
+                        type="number"
+                        value={plan.seatBased.minimumCommitment || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || val === '0') {
+                            updateSeatBased({ minimumCommitment: 0 });
+                          } else {
+                            updateSeatBased({ minimumCommitment: Number(val) });
+                          }
+                        }}
+                        onWheel={handleNumberInputWheel}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                        min="0"
+                      />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Billing frequency</label>
                         <select
                           value={plan.seatBased.billingFrequency}
                           onChange={(e) => updateSeatBased({ billingFrequency: e.target.value as BillingFrequency })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         >
                           <option>Monthly</option>
                           <option>Quarterly</option>
@@ -714,37 +816,105 @@ function CreatePlanContent() {
           {/* Right column - Preview Panels */}
           <div className="space-y-8">
             {/* Invoice Preview */}
-            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200 sticky top-24">
-              <h3 className="text-base font-bold text-emerald-900 mb-4">Invoice Preview</h3>
+            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-emerald-900">Invoice Preview</h3>
+                <select
+                  value={plan.currency}
+                  onChange={(e) => updatePlan('currency', e.target.value)}
+                  className="text-xs border border-emerald-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="INR">₹ INR</option>
+                  <option value="USD">$ USD</option>
+                  <option value="EUR">€ EUR</option>
+                  <option value="GBP">£ GBP</option>
+                  <option value="AUD">A$ AUD</option>
+                  <option value="CAD">C$ CAD</option>
+                </select>
+              </div>
+              
+              {/* Seat Slider */}
+              {plan.seatBased.enabled && (
+                <div className="mb-6 pb-6 border-b border-emerald-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-emerald-900">
+                      Sample Seats
+                    </label>
+                    <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={sampleSeats}
+                    onChange={(e) => setSampleSeats(Number(e.target.value))}
+                    className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                  />
+                  <div className="flex justify-between text-xs text-emerald-600 mt-1">
+                    <span>0</span>
+                    <span>100</span>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-emerald-700 mb-5">
                 {agent.agentType === 'voice' 
-                  ? 'Based on sample: 5 seats, 50 voice minutes'
-                  : 'Based on sample: 5 seats, 150 messages, 20 articles'
+                  ? `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 50 voice minutes`
+                  : `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 150 messages, 20 articles`
                 }
               </p>
+              
               <div className="text-4xl font-bold text-emerald-900">
-                ₹{calculateInvoice()}
+                {formatPrice(calculateInvoiceBreakdown().total * 100, plan.currency)}
                 <span className="text-base font-normal text-emerald-600 ml-2">
                   /{plan.billingFrequency.toLowerCase()}
                 </span>
               </div>
               
               <div className="mt-6 pt-6 border-t border-emerald-200">
-                <h4 className="text-xs font-bold text-emerald-900 mb-3 uppercase tracking-wide">Plan summary</h4>
-                <div className="space-y-2 text-xs text-emerald-800">
-                  {plan.basePrice > 0 && (
-                    <div className="flex justify-between">
-                      <span>Base price:</span>
-                      <span className="font-medium">{formatPrice(plan.basePrice)}</span>
-                    </div>
-                  )}
-                  {plan.seatBased.enabled && (
-                    <div className="flex justify-between">
-                      <span>Seats (5):</span>
-                      <span className="font-medium">
-                        {formatPrice(plan.seatBased.price * 5 * 100)}
-                      </span>
-                    </div>
+                <h4 className="text-xs font-bold text-emerald-900 mb-4 uppercase tracking-wide">Breakdown</h4>
+                <div className="space-y-3 text-xs text-emerald-800">
+                  {(() => {
+                    const breakdown = calculateInvoiceBreakdown();
+                    return (
+                      <>
+                        {breakdown.basePrice > 0 && (
+                          <div className="flex justify-between">
+                            <span>Base price:</span>
+                            <span className="font-medium">{formatPrice(breakdown.basePrice * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {breakdown.setupFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Setup fee:</span>
+                            <span className="font-medium">{formatPrice(breakdown.setupFee * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {breakdown.platformFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Platform fee:</span>
+                            <span className="font-medium">{formatPrice(breakdown.platformFee * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {plan.seatBased.enabled && (
+                          <div className="flex justify-between">
+                            <span>
+                              Seats ({Math.max(effectiveSampleSeats, plan.seatBased.minimumCommitment)} @ {formatPrice(plan.seatBased.price, plan.currency)}/seat):
+                            </span>
+                            <span className="font-medium">{formatPrice(breakdown.seatCharge * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {Object.entries(breakdown.indicatorCharges).map(([name, charge]) => (
+                          <div key={name} className="flex justify-between">
+                            <span>{name}:</span>
+                            <span className="font-medium">{formatPrice(charge * 100, plan.currency)}</span>
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
+                  {Object.values(calculateInvoiceBreakdown().indicatorCharges).length === 0 && calculateInvoiceBreakdown().basePrice === 0 && calculateInvoiceBreakdown().setupFee === 0 && calculateInvoiceBreakdown().platformFee === 0 && calculateInvoiceBreakdown().seatCharge === 0 && (
+                    <div className="text-emerald-600 italic">No charges configured</div>
                   )}
                 </div>
               </div>
@@ -896,11 +1066,17 @@ function CreatePlanContent() {
                           </label>
                           <input
                             type="number"
-                            value={config.price}
-                            onChange={(e) =>
-                              updateIndicator(type, indicator.id, { price: Number(e.target.value) })
-                            }
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            value={config.price || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '0') {
+                                updateIndicator(type, indicator.id, { price: 0 });
+                              } else {
+                                updateIndicator(type, indicator.id, { price: Number(val) });
+                              }
+                            }}
+                            onWheel={handleNumberInputWheel}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             step="0.01"
                             min="0"
                           />
@@ -911,13 +1087,17 @@ function CreatePlanContent() {
                           </label>
                           <input
                             type="number"
-                            value={config.minimumCommitment ?? 0}
-                            onChange={(e) =>
-                              updateIndicator(type, indicator.id, {
-                                minimumCommitment: Number(e.target.value),
-                              })
-                            }
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            value={config.minimumCommitment ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '0') {
+                                updateIndicator(type, indicator.id, { minimumCommitment: 0 });
+                              } else {
+                                updateIndicator(type, indicator.id, { minimumCommitment: Number(val) });
+                              }
+                            }}
+                            onWheel={handleNumberInputWheel}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             min="0"
                           />
                         </div>
@@ -927,13 +1107,17 @@ function CreatePlanContent() {
                           </label>
                           <input
                             type="number"
-                            value={config.includedUsage}
-                            onChange={(e) =>
-                              updateIndicator(type, indicator.id, {
-                                includedUsage: Number(e.target.value),
-                              })
-                            }
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                            value={config.includedUsage || ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '' || val === '0') {
+                                updateIndicator(type, indicator.id, { includedUsage: 0 });
+                              } else {
+                                updateIndicator(type, indicator.id, { includedUsage: Number(val) });
+                              }
+                            }}
+                            onWheel={handleNumberInputWheel}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                             min="0"
                           />
                         </div>
@@ -985,23 +1169,30 @@ function CreatePlanContent() {
                                 <span className="text-gray-500 text-sm w-6">{idx + 1}.</span>
                                 <input
                                   type="number"
-                                  value={tier.from}
-                                  onChange={(e) =>
-                                    updateTier(type, indicator.id, tier.id, 'from', Number(e.target.value))
-                                  }
-                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm"
+                                  value={tier.from || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '0') {
+                                      updateTier(type, indicator.id, tier.id, 'from', 0);
+                                    } else {
+                                      updateTier(type, indicator.id, tier.id, 'from', Number(val));
+                                    }
+                                  }}
+                                  onWheel={handleNumberInputWheel}
+                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   placeholder="From"
-                                  min="1"
+                                  min="0"
                                 />
                                 <span>–</span>
                                 <input
                                   type="number"
-                                  value={tier.to === 0 ? '' : tier.to}
+                                  value={tier.to === 0 ? '' : tier.to || ''}
                                   onChange={(e) => {
                                     const val = e.target.value === '' ? 0 : Number(e.target.value);
                                     updateTier(type, indicator.id, tier.id, 'to', val);
                                   }}
-                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm"
+                                  onWheel={handleNumberInputWheel}
+                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   placeholder="To"
                                   min="0"
                                 />
@@ -1010,11 +1201,17 @@ function CreatePlanContent() {
                                 </span>
                                 <input
                                   type="number"
-                                  value={tier.price}
-                                  onChange={(e) =>
-                                    updateTier(type, indicator.id, tier.id, 'price', Number(e.target.value))
-                                  }
-                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm"
+                                  value={tier.price || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val === '' || val === '0') {
+                                      updateTier(type, indicator.id, tier.id, 'price', 0);
+                                    } else {
+                                      updateTier(type, indicator.id, tier.id, 'price', Number(val));
+                                    }
+                                  }}
+                                  onWheel={handleNumberInputWheel}
+                                  className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                                   step="0.01"
                                   min="0"
                                 />
@@ -1029,14 +1226,104 @@ function CreatePlanContent() {
                                 </button>
                               </div>
                             ))}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {config.billingType === 'VOLUME'
-                              ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier’s rate.`
-                              : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
-                          </p>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {config.billingType === 'VOLUME'
+                            ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier's rate.`
+                            : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
+                        </p>
                         </div>
                       )}
+
+                      {/* Model Overrides Section - Always shown for enabled indicators */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <label className="text-sm font-semibold text-gray-900">Model-Specific Pricing</label>
+                            <p className="text-xs text-gray-600 mt-1">Override pricing for specific AI models. For example, charge ₹0.002 per message for GPT-4o but ₹0.001 for Deepseek. Customers using that model will be charged the custom rate.</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newOverrides = { ...config.modelOverrides };
+                            newOverrides[`gpt-4o`] = 0;
+                            updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                          }}
+                          className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded transition font-medium mt-3 mb-3"
+                        >
+                          + Add Model Override
+                        </button>
+
+                        {config.modelOverrides && Object.entries(config.modelOverrides).length > 0 ? (
+                          <div className="space-y-3">
+                            {Object.entries(config.modelOverrides).map(([modelId, price]) => (
+                              <div key={modelId} className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-lg">
+                                <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Model Name</label>
+                                    <input
+                                      type="text"
+                                      value={modelId}
+                                      onChange={(e) => {
+                                        const newOverrides = { ...config.modelOverrides };
+                                        delete newOverrides[modelId];
+                                        newOverrides[e.target.value] = price;
+                                        updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                      }}
+                                      className="w-full border border-emerald-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                      placeholder="e.g., gpt-4o, deepseek-chat, claude-opus"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Enter the exact model identifier</p>
+                                  </div>
+                                  <div className="flex-shrink-0 min-w-0">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Price ({indicator.perMinuteEnabled ? 'per min' : 'per unit'})</label>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm font-medium text-gray-600">₹</span>
+                                      <input
+                                        type="number"
+                                        value={price || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const newOverrides = { ...config.modelOverrides };
+                                          if (val === '' || val === '0') {
+                                            newOverrides[modelId] = 0;
+                                          } else {
+                                            newOverrides[modelId] = Number(val);
+                                          }
+                                          updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                        }}
+                                        onWheel={handleNumberInputWheel}
+                                        className="w-28 border border-emerald-300 rounded px-2 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                        step="0.001"
+                                        min="0"
+                                        placeholder="0.00"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newOverrides = { ...config.modelOverrides };
+                                          delete newOverrides[modelId];
+                                          updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                        }}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                                        title="Delete this override"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 italic px-3 py-2 bg-gray-50 rounded">No model overrides set. Click "Add Model Override" to create one.</p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1046,43 +1333,63 @@ function CreatePlanContent() {
         </div>
 
         {/* 4️⃣ Limits & Enforcement */}
-        <div className="mt-6 bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Limits & Enforcement</h2>
+        <div className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Limits & Enforcement</h2>
           <div className="grid grid-cols-2 gap-6 max-w-2xl">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Max tokens per month
               </label>
               <input
                 type="number"
-                value={plan.hardLimits.tokensPerMonth}
-                onChange={(e) =>
-                  setPlan((prev: Plan) => ({
-                    ...prev,
-                    hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(e.target.value) },
-                    updatedAt: new Date().toISOString()
-                  }))
-                }
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                value={plan.hardLimits.tokensPerMonth || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || val === '0') {
+                    setPlan((prev: Plan) => ({
+                      ...prev,
+                      hardLimits: { ...prev.hardLimits, tokensPerMonth: 0 },
+                      updatedAt: new Date().toISOString()
+                    }))
+                  } else {
+                    setPlan((prev: Plan) => ({
+                      ...prev,
+                      hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(val) },
+                      updatedAt: new Date().toISOString()
+                    }))
+                  }
+                }}
+                onWheel={handleNumberInputWheel}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                 placeholder="e.g., 500000"
                 min="0"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Max API calls per month
               </label>
               <input
                 type="number"
-                value={plan.hardLimits.apiCallsPerMonth}
-                onChange={(e) =>
-                  setPlan((prev: Plan) => ({
-                    ...prev,
-                    hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(e.target.value) },
-                    updatedAt: new Date().toISOString()
-                  }))
-                }
-                className="w-full border border-gray-300 rounded-lg px-4 py-2"
+                value={plan.hardLimits.apiCallsPerMonth || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || val === '0') {
+                    setPlan((prev: Plan) => ({
+                      ...prev,
+                      hardLimits: { ...prev.hardLimits, apiCallsPerMonth: 0 },
+                      updatedAt: new Date().toISOString()
+                    }))
+                  } else {
+                    setPlan((prev: Plan) => ({
+                      ...prev,
+                      hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(val) },
+                      updatedAt: new Date().toISOString()
+                    }))
+                  }
+                }}
+                onWheel={handleNumberInputWheel}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                 placeholder="e.g., 5000"
                 min="0"
               />
