@@ -146,7 +146,7 @@ function PlanCard({
               </svg>
               <div className="text-sm">
                 <p className="text-gray-700 font-medium">Seats</p>
-                <p className="text-gray-500">{formatPrice(plan.seatBased.price * 100, plan.currency)}/seat
+                <p className="text-gray-500">{formatPrice(plan.seatBased.price, plan.currency)}/seat
                   {plan.seatBased.includedUsage > 0 && ` (${plan.seatBased.includedUsage} included)`}
                 </p>
               </div>
