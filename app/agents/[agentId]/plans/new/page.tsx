@@ -542,10 +542,10 @@ function CreatePlanContent() {
           </div>
         )}
 
-        {/* Main form - grid layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
-          {/* Left column - Basic Info & Fees & Seats & Usage Pricing */}
-          <div className="space-y-8">
+        {/* Main form - Two Column Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column (2/3 width) - Form Sections */}
+          <div className="lg:col-span-2 space-y-8">
             {/* 1️⃣ Plan Identity */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
               <h2 className="text-xl font-bold text-gray-900 mb-6">Plan Identity</h2>
@@ -811,11 +811,29 @@ function CreatePlanContent() {
                 </div>
               </div>
             </div>
-          </div>
+            </div>
 
-          {/* Right column - Preview Panels */}
-          <div className="space-y-8 lg:sticky lg:top-8 lg:h-fit">
-            {/* Invoice Preview */}
+            {/* Usage-Based Pricing Section - In Left Column */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Usage-Based Pricing</h2>
+              <div className="space-y-6">
+                {agent.indicators.map((indicator) => {
+              const type = indicator.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
+              const config = plan[type][indicator.id] || {
+                enabled: false,
+                billingType: 'FLAT',
+                price: 0,
+                billingFrequency: 'Monthly',
+                includedUsage: 0,
+                tiers: [],
+                rounding: 'ceil',
+              };
+
+              return (
+                <div key={indicator.id} className="border border-gray-200 rounded-lg p-5">
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
             <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-emerald-900">Invoice Preview</h3>
@@ -941,41 +959,6 @@ function CreatePlanContent() {
                 </div>
               </div>
             </div>
-            {/* Usage-Based Pricing Section */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Usage-Based Pricing</h2>
-              <div className="space-y-6">
-                {agent.indicators.map((indicator) => {
-              const type = indicator.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
-              const config = plan[type][indicator.id] || {
-                enabled: false,
-                billingType: 'FLAT',
-                price: 0,
-                billingFrequency: 'Monthly',
-                includedUsage: 0,
-                tiers: [],
-                rounding: 'ceil',
-              };
-
-              return (
-                <div key={indicator.id} className="border border-gray-200 rounded-lg p-5">
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <span className="font-medium text-gray-900">{indicator.name}</span>
-                      <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full">
-                        {indicator.type}
-                      </span>
-                      {indicator.perMinuteEnabled && (
-                        <span className="ml-2 text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
-                          per minute
-                        </span>
-                      )}
-                      <p className="text-xs text-gray-500 mt-1">
-                        1 {indicator.perMinuteEnabled ? 'minute' : 'event'} = {indicator.humanValueEquivalent} billing unit
-                        {indicator.perMinuteEnabled ? ' (billed per minute)' : ''}
-                      </p>
-                    </div>
                     <label className="flex items-center gap-1.5">
                       <input
                         type="checkbox"
@@ -1377,23 +1360,153 @@ function CreatePlanContent() {
                 </div>
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons - Full Width at Bottom */}
-        <div className="flex gap-4 justify-end mt-10">
-          <Link
-            href={`/agents/${agentId}/plans`}
-            className="px-6 py-3 text-gray-700 font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-          >
-            Cancel
-          </Link>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
-          >
-            {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
-          </button>
+          {/* Right Column (1/3 width) - Sticky Preview Sections */}
+          <div className="space-y-8 lg:sticky lg:top-24 lg:h-fit">
+            {/* Invoice Preview */}
+            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-emerald-900">Invoice Preview</h3>
+                <select
+                  value={plan.currency}
+                  onChange={(e) => updatePlan('currency', e.target.value)}
+                  className="text-xs border border-emerald-300 rounded px-2 py-1 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="INR">₹ INR</option>
+                  <option value="USD">$ USD</option>
+                  <option value="EUR">€ EUR</option>
+                  <option value="GBP">£ GBP</option>
+                  <option value="AUD">A$ AUD</option>
+                  <option value="CAD">C$ CAD</option>
+                </select>
+              </div>
+              
+              {/* Seat Slider */}
+              {plan.seatBased.enabled && (
+                <div className="mb-6 pb-6 border-b border-emerald-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-emerald-900">
+                      Sample Seats
+                    </label>
+                    <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={sampleSeats}
+                    onChange={(e) => setSampleSeats(Number(e.target.value))}
+                    className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                  />
+                  <div className="flex justify-between text-xs text-emerald-600 mt-1">
+                    <span>0</span>
+                    <span>100</span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-xs text-emerald-700 mb-5">
+                {agent.agentType === 'voice' 
+                  ? `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 50 voice minutes`
+                  : `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 150 messages, 20 articles`
+                }
+              </p>
+              
+              <div className="text-4xl font-bold text-emerald-900">
+                {formatPrice(calculateInvoiceBreakdown().total * 100, plan.currency)}
+                <span className="text-base font-normal text-emerald-600 ml-2">
+                  /{plan.billingFrequency.toLowerCase()}
+                </span>
+              </div>
+              
+              <div className="mt-6 pt-6 border-t border-emerald-200">
+                <h4 className="text-xs font-bold text-emerald-900 mb-4 uppercase tracking-wide">Breakdown</h4>
+                <div className="space-y-3 text-xs text-emerald-800">
+                  {(() => {
+                    const breakdown = calculateInvoiceBreakdown();
+                    return (
+                      <>
+                        {breakdown.basePrice > 0 && (
+                          <div className="flex justify-between">
+                            <span>Base price:</span>
+                            <span className="font-medium">{formatPrice(breakdown.basePrice * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {breakdown.setupFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Setup fee:</span>
+                            <span className="font-medium">{formatPrice(breakdown.setupFee * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {breakdown.platformFee > 0 && (
+                          <div className="flex justify-between">
+                            <span>Platform fee:</span>
+                            <span className="font-medium">{formatPrice(breakdown.platformFee * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {plan.seatBased.enabled && (
+                          <div className="flex justify-between">
+                            <span>
+                              Seats ({Math.max(effectiveSampleSeats, plan.seatBased.minimumCommitment)} @ {formatPrice(plan.seatBased.price, plan.currency)}/seat):
+                            </span>
+                            <span className="font-medium">{formatPrice(breakdown.seatCharge * 100, plan.currency)}</span>
+                          </div>
+                        )}
+                        {Object.entries(breakdown.indicatorCharges).map(([name, charge]) => (
+                          <div key={name} className="flex justify-between">
+                            <span>{name}:</span>
+                            <span className="font-medium">{formatPrice(charge * 100, plan.currency)}</span>
+                          </div>
+                        ))}
+                      </>
+                    );
+                  })()}
+                  {Object.values(calculateInvoiceBreakdown().indicatorCharges).length === 0 && calculateInvoiceBreakdown().basePrice === 0 && calculateInvoiceBreakdown().setupFee === 0 && calculateInvoiceBreakdown().platformFee === 0 && calculateInvoiceBreakdown().seatCharge === 0 && (
+                    <div className="text-emerald-600 italic">No charges configured</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Subscription Preview */}
+            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
+              <h3 className="text-base font-bold text-gray-900 mb-4">Subscription Preview</h3>
+              <div className="text-sm text-gray-600 space-y-2">
+                <div className="flex justify-between">
+                  <span>Customer subscribes to:</span>
+                  <span className="font-medium">{plan.name || 'Unnamed Plan'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Billing cycle:</span>
+                  <span className="font-medium">{plan.billingFrequency}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Invoice generated:</span>
+                  <span className="font-medium">Every {plan.billingFrequency}</span>
+                </div>
+                <div className="border-t pt-2 mt-2 text-xs text-gray-400">
+                  Usage is measured per billing cycle. Overage charges apply after included units.
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons - At Bottom of Right Column */}
+            <div className="flex flex-col gap-3 lg:flex-col-reverse">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
+              >
+                {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
+              </button>
+              <Link
+                href={`/agents/${agentId}/plans`}
+                className="w-full px-6 py-3 text-center text-gray-700 font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                Cancel
+              </Link>
+            </div>
+          </div>
         </div>
       </form>
     </div>
