@@ -543,8 +543,8 @@ function CreatePlanContent() {
         )}
 
         {/* Main form - grid layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-8">
-          {/* Left column - Basic Info & Fees & Seats */}
+        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-8">
+          {/* Left column - Basic Info & Fees & Seats & Usage Pricing */}
           <div className="space-y-8">
             {/* 1️⃣ Plan Identity */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
@@ -941,31 +941,11 @@ function CreatePlanContent() {
                 </div>
               </div>
             </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white rounded-2xl shadow-sm p-8 border border-gray-200">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-3.5 px-4 rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
-              >
-                {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
-              </button>
-              <Link
-                href={`/agents/${agentId}/plans`}
-                className="block text-center mt-3 text-sm text-gray-600 hover:text-gray-900 py-2.5 font-medium"
-              >
-                Cancel
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Usage-Based Pricing Section - Full Width */}
-        <div className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Usage-Based Pricing</h2>
-          <div className="space-y-6">
-            {agent.indicators.map((indicator) => {
+            {/* Usage-Based Pricing Section */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Usage-Based Pricing</h2>
+              <div className="space-y-6">
+                {agent.indicators.map((indicator) => {
               const type = indicator.type === 'ACTIVITY' ? 'activityBased' : 'outcomeBased';
               const config = plan[type][indicator.id] || {
                 enabled: false,
@@ -1329,72 +1309,91 @@ function CreatePlanContent() {
                 </div>
               );
             })}
+              </div>
+            </div>
+
+            {/* 4️⃣ Limits & Enforcement */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
+              <h2 className="text-xl font-bold text-gray-900 mb-6">Limits & Enforcement</h2>
+              <div className="grid grid-cols-2 gap-6 max-w-2xl">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Max tokens per month
+                    </label>
+                    <input
+                      type="number"
+                      value={plan.hardLimits.tokensPerMonth || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '0') {
+                          setPlan((prev: Plan) => ({
+                            ...prev,
+                            hardLimits: { ...prev.hardLimits, tokensPerMonth: 0 },
+                            updatedAt: new Date().toISOString()
+                          }))
+                        } else {
+                          setPlan((prev: Plan) => ({
+                            ...prev,
+                            hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(val) },
+                            updatedAt: new Date().toISOString()
+                          }))
+                        }
+                      }}
+                      onWheel={handleNumberInputWheel}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                      placeholder="e.g., 500000"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Max API calls per month
+                    </label>
+                    <input
+                      type="number"
+                      value={plan.hardLimits.apiCallsPerMonth || ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '0') {
+                          setPlan((prev: Plan) => ({
+                            ...prev,
+                            hardLimits: { ...prev.hardLimits, apiCallsPerMonth: 0 },
+                            updatedAt: new Date().toISOString()
+                          }))
+                        } else {
+                          setPlan((prev: Plan) => ({
+                            ...prev,
+                            hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(val) },
+                            updatedAt: new Date().toISOString()
+                          }))
+                        }
+                      }}
+                      onWheel={handleNumberInputWheel}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                      placeholder="e.g., 5000"
+                      min="0"
+                    />
+                  </div>
+                </div>
+            </div>
           </div>
         </div>
 
-        {/* 4️⃣ Limits & Enforcement */}
-        <div className="mt-8 bg-white rounded-2xl border border-gray-200 shadow-sm p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Limits & Enforcement</h2>
-          <div className="grid grid-cols-2 gap-6 max-w-2xl">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Max tokens per month
-              </label>
-              <input
-                type="number"
-                value={plan.hardLimits.tokensPerMonth || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '' || val === '0') {
-                    setPlan((prev: Plan) => ({
-                      ...prev,
-                      hardLimits: { ...prev.hardLimits, tokensPerMonth: 0 },
-                      updatedAt: new Date().toISOString()
-                    }))
-                  } else {
-                    setPlan((prev: Plan) => ({
-                      ...prev,
-                      hardLimits: { ...prev.hardLimits, tokensPerMonth: Number(val) },
-                      updatedAt: new Date().toISOString()
-                    }))
-                  }
-                }}
-                onWheel={handleNumberInputWheel}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                placeholder="e.g., 500000"
-                min="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Max API calls per month
-              </label>
-              <input
-                type="number"
-                value={plan.hardLimits.apiCallsPerMonth || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '' || val === '0') {
-                    setPlan((prev: Plan) => ({
-                      ...prev,
-                      hardLimits: { ...prev.hardLimits, apiCallsPerMonth: 0 },
-                      updatedAt: new Date().toISOString()
-                    }))
-                  } else {
-                    setPlan((prev: Plan) => ({
-                      ...prev,
-                      hardLimits: { ...prev.hardLimits, apiCallsPerMonth: Number(val) },
-                      updatedAt: new Date().toISOString()
-                    }))
-                  }
-                }}
-                onWheel={handleNumberInputWheel}
-                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                placeholder="e.g., 5000"
-                min="0"
-              />
-            </div>
-          </div>
+        {/* Action Buttons - Full Width at Bottom */}
+        <div className="flex gap-4 justify-end mt-10">
+          <Link
+            href={`/agents/${agentId}/plans`}
+            className="px-6 py-3 text-gray-700 font-semibold border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+          >
+            Cancel
+          </Link>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-lg hover:from-emerald-700 hover:to-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg hover:shadow-xl"
+          >
+            {isSubmitting ? 'Saving...' : plan.id ? 'Update Plan' : 'Create Plan'}
+          </button>
         </div>
       </form>
     </div>
