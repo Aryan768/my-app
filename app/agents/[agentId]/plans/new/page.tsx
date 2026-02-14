@@ -1215,6 +1215,7 @@ function CreatePlanContent() {
                             ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier's rate.`
                             : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
                         </p>
+                        </div>
                       )}
 
                       {/* Model Overrides Section - Always shown for enabled indicators */}
