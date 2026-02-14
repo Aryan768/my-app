@@ -1217,7 +1217,7 @@ function CreatePlanContent() {
                         </p>
                       )}
 
-                      {/* Model Overrides Section */}
+                      {/* Model Overrides Section - Always shown for enabled indicators */}
                       <div className="mt-4 pt-4 border-t border-gray-200">
                         <div className="flex items-center justify-between mb-3">
                           <label className="text-sm font-semibold text-gray-700">Model Overrides</label>
