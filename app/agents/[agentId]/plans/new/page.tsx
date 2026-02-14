@@ -173,6 +173,7 @@ function CreatePlanContent() {
   const [plan, setPlan] = useState<Plan>(() => createEmptyPlan(agentId));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(!!editId);
+  const [sampleSeats, setSampleSeats] = useState<number>(1);
 
   // Load plan if editing
   useEffect(() => {
@@ -310,6 +311,11 @@ function CreatePlanContent() {
 
     const newPlan = createEmptyPlan(agentId);
     newPlan.name = preset.name;
+    // Auto-generate slug from preset name
+    newPlan.slug = preset.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
     newPlan.basePrice = preset.basePrice;
     newPlan.seatBased = { ...newPlan.seatBased, ...preset.seatBased };
     newPlan.hardLimits = { ...newPlan.hardLimits, ...preset.hardLimits };
@@ -332,15 +338,27 @@ function CreatePlanContent() {
     setPlan(newPlan);
   };
 
+  // ---------- Determine default seat count for preview ----------
+  const getDefaultSampleSeats = (): number => {
+    if (plan.seatBased.minimumCommitment > 0) {
+      return plan.seatBased.minimumCommitment;
+    } else if (plan.seatBased.includedUsage > 0) {
+      return plan.seatBased.includedUsage;
+    }
+    return 1;
+  };
+
+  // Use the slider value if seat-based is enabled, otherwise use calculated default
+  const effectiveSampleSeats = plan.seatBased.enabled ? sampleSeats : 0;
+
   // ---------- Invoice preview with rounding ----------
-  const calculateInvoice = (): string => {
+  const calculateInvoice = (seats: number = effectiveSampleSeats): string => {
     let total = plan.basePrice / 100;
 
     if (plan.setupFee.enabled) total += plan.setupFee.price / 100;
     if (plan.platformFee.enabled) total += plan.platformFee.price / 100;
 
-    if (plan.seatBased.enabled) {
-      const seats = 5;
+    if (plan.seatBased.enabled && seats > 0) {
       const included = plan.seatBased.includedUsage;
       const extra = Math.max(0, seats - included);
       total += (extra * plan.seatBased.price) / 100;
@@ -665,9 +683,16 @@ function CreatePlanContent() {
                         <label className="block text-xs text-gray-600 mb-1">Price per seat (₹)</label>
                         <input
                           type="number"
-                          value={plan.seatBased.price / 100}
-                          onChange={(e) => updateSeatBased({ price: Number(e.target.value) * 100 })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
+                          value={plan.seatBased.price / 100 || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '0') {
+                              updateSeatBased({ price: 0 });
+                            } else {
+                              updateSeatBased({ price: Number(val) * 100 });
+                            }
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                           step="0.01"
                           min="0"
                         />
@@ -676,19 +701,33 @@ function CreatePlanContent() {
                         <label className="block text-xs text-gray-600 mb-1">Included seats</label>
                         <input
                           type="number"
-                          value={plan.seatBased.includedUsage}
-                          onChange={(e) => updateSeatBased({ includedUsage: Number(e.target.value) })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
+                          value={plan.seatBased.includedUsage || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '0') {
+                              updateSeatBased({ includedUsage: 0 });
+                            } else {
+                              updateSeatBased({ includedUsage: Number(val) });
+                            }
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                           min="0"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Minimum commitment</label>
+                        <label className="block text-xs text-gray-600 mb-1">Minimum commitment (seats)</label>
                         <input
                           type="number"
-                          value={plan.seatBased.minimumCommitment}
-                          onChange={(e) => updateSeatBased({ minimumCommitment: Number(e.target.value) })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5"
+                          value={plan.seatBased.minimumCommitment || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '' || val === '0') {
+                              updateSeatBased({ minimumCommitment: 0 });
+                            } else {
+                              updateSeatBased({ minimumCommitment: Number(val) });
+                            }
+                          }}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                           min="0"
                         />
                       </div>
@@ -697,7 +736,7 @@ function CreatePlanContent() {
                         <select
                           value={plan.seatBased.billingFrequency}
                           onChange={(e) => updateSeatBased({ billingFrequency: e.target.value as BillingFrequency })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 bg-white"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
                         >
                           <option>Monthly</option>
                           <option>Quarterly</option>
@@ -714,14 +753,40 @@ function CreatePlanContent() {
           {/* Right column - Preview Panels */}
           <div className="space-y-8">
             {/* Invoice Preview */}
-            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200 sticky top-24">
+            <div className="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm p-8 border border-emerald-200">
               <h3 className="text-base font-bold text-emerald-900 mb-4">Invoice Preview</h3>
+              
+              {/* Seat Slider */}
+              {plan.seatBased.enabled && (
+                <div className="mb-6 pb-6 border-b border-emerald-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-emerald-900">
+                      Sample Seats
+                    </label>
+                    <span className="text-sm font-bold text-emerald-700">{effectiveSampleSeats}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={sampleSeats}
+                    onChange={(e) => setSampleSeats(Number(e.target.value))}
+                    className="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                  />
+                  <div className="flex justify-between text-xs text-emerald-600 mt-1">
+                    <span>0</span>
+                    <span>100</span>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs text-emerald-700 mb-5">
                 {agent.agentType === 'voice' 
-                  ? 'Based on sample: 5 seats, 50 voice minutes'
-                  : 'Based on sample: 5 seats, 150 messages, 20 articles'
+                  ? `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 50 voice minutes`
+                  : `Based on sample: ${effectiveSampleSeats} seat${effectiveSampleSeats !== 1 ? 's' : ''}, 150 messages, 20 articles`
                 }
               </p>
+              
               <div className="text-4xl font-bold text-emerald-900">
                 ₹{calculateInvoice()}
                 <span className="text-base font-normal text-emerald-600 ml-2">
@@ -730,19 +795,31 @@ function CreatePlanContent() {
               </div>
               
               <div className="mt-6 pt-6 border-t border-emerald-200">
-                <h4 className="text-xs font-bold text-emerald-900 mb-3 uppercase tracking-wide">Plan summary</h4>
-                <div className="space-y-2 text-xs text-emerald-800">
+                <h4 className="text-xs font-bold text-emerald-900 mb-4 uppercase tracking-wide">Breakdown</h4>
+                <div className="space-y-3 text-xs text-emerald-800">
                   {plan.basePrice > 0 && (
                     <div className="flex justify-between">
                       <span>Base price:</span>
                       <span className="font-medium">{formatPrice(plan.basePrice)}</span>
                     </div>
                   )}
-                  {plan.seatBased.enabled && (
+                  {plan.setupFee.enabled && plan.setupFee.price > 0 && (
                     <div className="flex justify-between">
-                      <span>Seats (5):</span>
+                      <span>Setup fee:</span>
+                      <span className="font-medium">{formatPrice(plan.setupFee.price)}</span>
+                    </div>
+                  )}
+                  {plan.platformFee.enabled && plan.platformFee.price > 0 && (
+                    <div className="flex justify-between">
+                      <span>Platform fee:</span>
+                      <span className="font-medium">{formatPrice(plan.platformFee.price)}</span>
+                    </div>
+                  )}
+                  {plan.seatBased.enabled && effectiveSampleSeats > 0 && (
+                    <div className="flex justify-between">
+                      <span>Seat charge ({effectiveSampleSeats} × ${(plan.seatBased.price / 100).toFixed(2)}):</span>
                       <span className="font-medium">
-                        {formatPrice(plan.seatBased.price * 5 * 100)}
+                        {formatPrice(Math.max(0, effectiveSampleSeats - plan.seatBased.includedUsage) * plan.seatBased.price)}
                       </span>
                     </div>
                   )}
