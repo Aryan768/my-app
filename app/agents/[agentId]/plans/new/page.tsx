@@ -1011,12 +1011,6 @@ function CreatePlanContent() {
     </div>
   );
 }
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                              Add tier
-                            </button>
-                          </div>
                           <div className="space-y-2">
                             {config.tiers?.map((tier: Tier, idx: number) => (
                               <div key={tier.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded">
