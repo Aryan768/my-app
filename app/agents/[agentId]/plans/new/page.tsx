@@ -1237,75 +1237,91 @@ function CreatePlanContent() {
 
                       {/* Model Overrides Section - Always shown for enabled indicators */}
                       <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <label className="text-sm font-semibold text-gray-700">Model Overrides</label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newOverrides = { ...config.modelOverrides };
-                              newOverrides[`model_${Date.now()}`] = 0;
-                              updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
-                            }}
-                            className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded transition font-medium"
-                          >
-                            Add Override
-                          </button>
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <label className="text-sm font-semibold text-gray-900">Model-Specific Pricing</label>
+                            <p className="text-xs text-gray-600 mt-1">Override pricing for specific AI models. For example, charge ₹0.002 per message for GPT-4o but ₹0.001 for Deepseek. Customers using that model will be charged the custom rate.</p>
+                          </div>
                         </div>
 
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newOverrides = { ...config.modelOverrides };
+                            newOverrides[`gpt-4o`] = 0;
+                            updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                          }}
+                          className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded transition font-medium mt-3 mb-3"
+                        >
+                          + Add Model Override
+                        </button>
+
                         {config.modelOverrides && Object.entries(config.modelOverrides).length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {Object.entries(config.modelOverrides).map(([modelId, price]) => (
-                              <div key={modelId} className="flex items-center gap-2 bg-gray-50 p-3 rounded">
-                                <input
-                                  type="text"
-                                  value={modelId}
-                                  onChange={(e) => {
-                                    const newOverrides = { ...config.modelOverrides };
-                                    delete newOverrides[modelId];
-                                    newOverrides[e.target.value] = price;
-                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
-                                  }}
-                                  className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                                  placeholder="e.g., gpt-4o, deepseek-chat"
-                                />
-                                <span className="text-sm">₹</span>
-                                <input
-                                  type="number"
-                                  value={price || ''}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const newOverrides = { ...config.modelOverrides };
-                                    if (val === '' || val === '0') {
-                                      newOverrides[modelId] = 0;
-                                    } else {
-                                      newOverrides[modelId] = Number(val);
-                                    }
-                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
-                                  }}
-                                  onWheel={handleNumberInputWheel}
-                                  className="w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0.00"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const newOverrides = { ...config.modelOverrides };
-                                    delete newOverrides[modelId];
-                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
-                                  }}
-                                  className="text-red-500 hover:text-red-700 ml-1"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                              <div key={modelId} className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 rounded-lg">
+                                <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Model Name</label>
+                                    <input
+                                      type="text"
+                                      value={modelId}
+                                      onChange={(e) => {
+                                        const newOverrides = { ...config.modelOverrides };
+                                        delete newOverrides[modelId];
+                                        newOverrides[e.target.value] = price;
+                                        updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                      }}
+                                      className="w-full border border-emerald-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                      placeholder="e.g., gpt-4o, deepseek-chat, claude-opus"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Enter the exact model identifier</p>
+                                  </div>
+                                  <div className="flex-shrink-0 min-w-0">
+                                    <label className="block text-xs font-semibold text-gray-700 mb-1">Price ({indicator.perMinuteEnabled ? 'per min' : 'per unit'})</label>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm font-medium text-gray-600">₹</span>
+                                      <input
+                                        type="number"
+                                        value={price || ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const newOverrides = { ...config.modelOverrides };
+                                          if (val === '' || val === '0') {
+                                            newOverrides[modelId] = 0;
+                                          } else {
+                                            newOverrides[modelId] = Number(val);
+                                          }
+                                          updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                        }}
+                                        onWheel={handleNumberInputWheel}
+                                        className="w-28 border border-emerald-300 rounded px-2 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                        step="0.001"
+                                        min="0"
+                                        placeholder="0.00"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newOverrides = { ...config.modelOverrides };
+                                          delete newOverrides[modelId];
+                                          updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                        }}
+                                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded transition"
+                                        title="Delete this override"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-gray-500 italic">No model overrides yet. Click "Add Override" to create one.</p>
+                          <p className="text-xs text-gray-500 italic px-3 py-2 bg-gray-50 rounded">No model overrides set. Click "Add Model Override" to create one.</p>
                         )}
                       </div>
                     </div>

@@ -61,17 +61,192 @@ const formatPrice = (price: number, currency: string = 'INR') => {
   }).format(rupees);
 };
 
+// ---------- INVOICE PREVIEW MODAL ----------
+function InvoicePreviewModal({
+  plan,
+  agent,
+  onClose,
+  sampleSeats,
+  onSeatsChange
+}: {
+  plan: Plan;
+  agent: Agent;
+  onClose: () => void;
+  sampleSeats: number;
+  onSeatsChange: (seats: number) => void;
+}) {
+  const calculateBreakdown = () => {
+    let baseCharge = plan.basePrice;
+    let seatCharge = 0;
+    const indicatorCharges: Record<string, number> = {};
+    let setupFee = plan.setupFee.enabled ? plan.setupFee.price : 0;
+    let platformFee = plan.platformFee.enabled ? plan.platformFee.price : 0;
+
+    // Seat-based charges
+    if (plan.seatBased.enabled) {
+      const chargeableSeats = Math.max(sampleSeats, plan.seatBased.minimumCommitment);
+      const includedSeats = plan.seatBased.includedUsage;
+      const extra = Math.max(0, chargeableSeats - includedSeats);
+      seatCharge = (extra * plan.seatBased.price) / 100;
+    }
+
+    // Activity and outcome indicators
+    const processIndicators = (type: 'ACTIVITY' | 'OUTCOME') => {
+      agent.indicators
+        .filter((ind) => ind.type === type)
+        .forEach((indicator) => {
+          const config = type === 'ACTIVITY' ? plan.activityBased[indicator.id] : plan.outcomeBased[indicator.id];
+          if (!config?.enabled) return;
+
+          const sampleUsage = indicator.humanValueEquivalent * 1000;
+          const included = config.includedUsage;
+          const overage = Math.max(0, sampleUsage - included);
+
+          if (config.billingType === 'FLAT') {
+            const cost = (overage * config.price) / 100;
+            if (cost > 0) {
+              indicatorCharges[indicator.name] = cost;
+            }
+          }
+        });
+    };
+
+    processIndicators('ACTIVITY');
+    processIndicators('OUTCOME');
+
+    const subtotal = baseCharge + seatCharge + Object.values(indicatorCharges).reduce((a, b) => a + b, 0);
+    const total = subtotal + setupFee + platformFee;
+
+    return {
+      baseCharge,
+      seatCharge,
+      indicatorCharges,
+      setupFee,
+      platformFee,
+      subtotal,
+      total
+    };
+  };
+
+  const breakdown = calculateBreakdown();
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        {/* Header */}
+        <div className="sticky top-0 flex items-center justify-between px-6 py-5 border-b border-gray-200 bg-white">
+          <h2 className="text-2xl font-bold text-gray-900">{plan.name} - Invoice Preview</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Sample Seats Input */}
+          {plan.seatBased.enabled && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <label className="block text-sm font-semibold text-gray-900 mb-2">Number of Sample Seats</label>
+              <input
+                type="number"
+                value={sampleSeats}
+                onChange={(e) => onSeatsChange(Math.max(1, Number(e.target.value)))}
+                className="w-full border border-blue-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
+                min="1"
+              />
+              <p className="text-xs text-gray-600 mt-2">Adjust to see how pricing changes with different seat counts</p>
+            </div>
+          )}
+
+          {/* Breakdown */}
+          <div className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">Pricing Breakdown</h3>
+            </div>
+            <div className="divide-y divide-gray-200 p-4 space-y-3">
+              {/* Base Price */}
+              <div className="flex justify-between">
+                <span className="text-gray-700">Base Price:</span>
+                <span className="font-semibold text-gray-900">{formatPrice(breakdown.baseCharge, plan.currency)}</span>
+              </div>
+
+              {/* Seat Charge */}
+              {plan.seatBased.enabled && (
+                <div className="flex justify-between pt-2">
+                  <span className="text-gray-700">Seat Charge ({Math.max(sampleSeats, plan.seatBased.minimumCommitment)} seats):</span>
+                  <span className="font-semibold text-gray-900">{formatPrice(breakdown.seatCharge * 100, plan.currency)}</span>
+                </div>
+              )}
+
+              {/* Indicator Charges */}
+              {Object.entries(breakdown.indicatorCharges).map(([name, cost]) => (
+                <div key={name} className="flex justify-between pt-2">
+                  <span className="text-gray-700">{name} (usage-based):</span>
+                  <span className="font-semibold text-gray-900">{formatPrice(cost * 100, plan.currency)}</span>
+                </div>
+              ))}
+
+              {/* Subtotal */}
+              <div className="flex justify-between pt-3 border-t-2 border-gray-200 font-semibold">
+                <span>Subtotal:</span>
+                <span>{formatPrice(breakdown.subtotal * 100, plan.currency)}</span>
+              </div>
+
+              {/* Setup Fee */}
+              {plan.setupFee.enabled && breakdown.setupFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Setup Fee:</span>
+                  <span className="font-semibold text-gray-900">{formatPrice(breakdown.setupFee, plan.currency)}</span>
+                </div>
+              )}
+
+              {/* Platform Fee */}
+              {plan.platformFee.enabled && breakdown.platformFee > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-700">Platform Fee:</span>
+                  <span className="font-semibold text-gray-900">{formatPrice(breakdown.platformFee, plan.currency)}</span>
+                </div>
+              )}
+
+              {/* Total */}
+              <div className="flex justify-between pt-3 border-t-2 border-emerald-200 bg-emerald-50 -mx-4 px-4 py-3 text-lg font-bold">
+                <span>Total ({plan.billingFrequency}):</span>
+                <span className="text-emerald-700">{formatPrice(breakdown.total * 100, plan.currency)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-3 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition"
+          >
+            Close Preview
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- PLAN CARD COMPONENT ----------
 function PlanCard({ 
   plan, 
   agent, 
   onEdit, 
-  onDelete 
+  onDelete,
+  onPreview
 }: { 
   plan: Plan; 
   agent: Agent; 
   onEdit: () => void;
   onDelete: () => void;
+  onPreview: () => void;
 }) {
   // Build summary of indicator pricing
   const indicatorSummaries = agent.indicators
@@ -188,18 +363,30 @@ function PlanCard({
       </div>
 
       {/* Actions */}
-      <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+      <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button
+            onClick={onEdit}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition duration-200"
+          >
+            Edit
+          </button>
+          <button
+            onClick={onDelete}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition duration-200"
+          >
+            Delete
+          </button>
+        </div>
         <button
-          onClick={onEdit}
-          className="flex-1 px-4 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition duration-200"
+          onClick={onPreview}
+          className="w-full px-4 py-2 text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition duration-200 flex items-center justify-center gap-2"
         >
-          Edit
-        </button>
-        <button
-          onClick={onDelete}
-          className="flex-1 px-4 py-2.5 text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition duration-200"
-        >
-          Delete
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Invoice Preview
         </button>
       </div>
 
@@ -218,6 +405,8 @@ export default function PlansListPage() {
   
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
+  const [previewSampleSeats, setPreviewSampleSeats] = useState(10);
   
   const agent = agents[agentId];
 
@@ -338,11 +527,23 @@ export default function PlansListPage() {
                 agent={agent}
                 onEdit={() => handleEdit(plan.id)}
                 onDelete={() => handleDelete(plan.id)}
+                onPreview={() => setPreviewPlanId(plan.id)}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Invoice Preview Modal */}
+      {previewPlanId && (
+        <InvoicePreviewModal
+          plan={plans.find((p) => p.id === previewPlanId)!}
+          agent={agent}
+          onClose={() => setPreviewPlanId(null)}
+          sampleSeats={previewSampleSeats}
+          onSeatsChange={setPreviewSampleSeats}
+        />
+      )}
     </div>
   );
 }
