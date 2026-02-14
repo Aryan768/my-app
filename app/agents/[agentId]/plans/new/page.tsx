@@ -256,6 +256,7 @@ function CreatePlanContent() {
         includedUsage: 0,
         tiers: [],
         rounding: 'ceil',
+        modelOverrides: {},
       };
       return {
         ...prev,
@@ -351,6 +352,9 @@ function CreatePlanContent() {
   // Use the slider value if seat-based is enabled, otherwise use calculated default
   const effectiveSampleSeats = plan.seatBased.enabled ? sampleSeats : 0;
 
+  // Preview model for testing model overrides
+  const PREVIEW_MODEL = 'gpt-4o';
+
   // ---------- Invoice breakdown calculation ----------
   interface InvoiceBreakdown {
     basePrice: number;
@@ -404,9 +408,15 @@ function CreatePlanContent() {
       const included = cfg.includedUsage || 0;
       const overage = Math.max(0, billingUnits - included);
 
+      // Determine the applicable price (use model override if available, else default)
+      let applicablePrice = cfg.price || 0;
+      if (cfg.modelOverrides && cfg.modelOverrides[PREVIEW_MODEL]) {
+        applicablePrice = cfg.modelOverrides[PREVIEW_MODEL];
+      }
+
       let indicatorCost = 0;
       if (cfg.billingType === 'FLAT') {
-        indicatorCost = overage * (cfg.price || 0) / 100;
+        indicatorCost = overage * applicablePrice / 100;
       } else if (cfg.billingType === 'VOLUME' || cfg.billingType === 'GRADUATED') {
         const tiers = cfg.tiers || [];
         let remaining = overage;
@@ -421,7 +431,7 @@ function CreatePlanContent() {
       }
       
       if (indicatorCost > 0) {
-        indicatorCharges[ind.name] = indicatorCost;
+        indicatorCharges[`${ind.name} (${PREVIEW_MODEL})`] = indicatorCost;
       }
     });
 
@@ -1199,14 +1209,86 @@ function CreatePlanContent() {
                                 </button>
                               </div>
                             ))}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-2">
-                            {config.billingType === 'VOLUME'
-                              ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier’s rate.`
-                              : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
-                          </p>
                         </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {config.billingType === 'VOLUME'
+                            ? `All ${indicator.perMinuteEnabled ? 'minutes' : 'units'} in a tier are charged at that tier's rate.`
+                            : `Only ${indicator.perMinuteEnabled ? 'minutes' : 'units'} above the tier threshold are charged at the next rate.`}
+                        </p>
                       )}
+
+                      {/* Model Overrides Section */}
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-semibold text-gray-700">Model Overrides</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newOverrides = { ...config.modelOverrides };
+                              newOverrides[`model_${Date.now()}`] = 0;
+                              updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                            }}
+                            className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-3 py-1.5 rounded transition font-medium"
+                          >
+                            Add Override
+                          </button>
+                        </div>
+
+                        {config.modelOverrides && Object.entries(config.modelOverrides).length > 0 ? (
+                          <div className="space-y-2">
+                            {Object.entries(config.modelOverrides).map(([modelId, price]) => (
+                              <div key={modelId} className="flex items-center gap-2 bg-gray-50 p-3 rounded">
+                                <input
+                                  type="text"
+                                  value={modelId}
+                                  onChange={(e) => {
+                                    const newOverrides = { ...config.modelOverrides };
+                                    delete newOverrides[modelId];
+                                    newOverrides[e.target.value] = price;
+                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                  }}
+                                  className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                  placeholder="e.g., gpt-4o, deepseek-chat"
+                                />
+                                <span className="text-sm">₹</span>
+                                <input
+                                  type="number"
+                                  value={price || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const newOverrides = { ...config.modelOverrides };
+                                    if (val === '' || val === '0') {
+                                      newOverrides[modelId] = 0;
+                                    } else {
+                                      newOverrides[modelId] = Number(val);
+                                    }
+                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                  }}
+                                  className="w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none transition"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0.00"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newOverrides = { ...config.modelOverrides };
+                                    delete newOverrides[modelId];
+                                    updateIndicator(type, indicator.id, { modelOverrides: newOverrides });
+                                  }}
+                                  className="text-red-500 hover:text-red-700 ml-1"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 italic">No model overrides yet. Click "Add Override" to create one.</p>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
